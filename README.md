@@ -8,13 +8,17 @@ Um projeto de estudo de recompilação estática de um jogo de Master System par
 
 ![Menu](docs/images/menu.png)
 
-## Interface 0.5.1
+## Interface 0.6
 
 As configurações agora são páginas dentro da janela principal, com abas de Controles, Vídeo, Áudio, O jogo, Projeto e Créditos. A barra de menus do Windows foi removida. Os botões do menu ficam ocultos enquanto essas páginas estão abertas. Há transições de página, destaque de seleção, nova logo de fã inspirada na marca clássica da Mônica e ícone incorporado ao executável. Os seletores de valores são componentes próprios, ajustados por setas, mouse ou controle, sem listas do Windows em janelas separadas. Avisos de mapeamento e notificações são exibidos dentro da interface. Concluir aplica as alterações; Descartar preserva a configuração anterior.
 
 ![Como o projeto foi feito](docs/images/projeto.png)
 
 ![Créditos e direitos](docs/images/creditos.png)
+
+## Áudio e apresentação na versão 0.6
+
+A saída WinMM acumula blocos fixos de 10 ms e inicia com uma reserva de 20/40/60 ms conforme a opção de latência. Quando um buffer está ocupado, aguarda sua liberação em vez de descartar o trecho. O vídeo é composto fora da tela e apresentado em uma única cópia. Os rótulos de recompilação/projeto de estudo foram retirados do menu; o contexto continua em Sobre/Projeto/Créditos e nesta documentação.
 
 ## O jogo e sua origem
 
@@ -62,7 +66,7 @@ Requer Windows x64, PowerShell, Git, CMake e Clang/MinGW com `mingw32-make` no P
 ./test-local.ps1 -RomPath 'C:/caminho/Monica no Castelo do Dragao (Brazil).sms'
 ```
 
-O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.5.1/MonicaRecomp-v0.5.1.exe**; mantenha `SDL3.dll` e `assets` junto dele.
+O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.6/MonicaRecomp-v0.6.exe**; mantenha `SDL3.dll` e `assets` junto dele.
 
 ROM suportada: 262144 bytes; CRC32 `01D67C0B`; SHA256 `484FDF3CB85C1BFD1CA938CFD59FD582A06EE20F9F3686BB3DFD1F7A70193086`.
 

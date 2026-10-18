@@ -21,6 +21,7 @@ static Preferences cfg;
 static wchar_t asset_dir[32768];
 static wchar_t ui_test_path[32768];
 static wchar_t navigation_test_path[32768];
+static wchar_t audio_test_path[32768];
 #define keys cfg.keys
 #define volume cfg.volume
 #define resolution cfg.resolution
@@ -42,9 +43,16 @@ static WINDOWPLACEMENT placement={sizeof(WINDOWPLACEMENT)};
 
 
 static HWAVEOUT audio_device;
+static HANDLE audio_event;
 static WAVEHDR audio_headers[8];
 static int16_t audio_buffers[8][4096];
 static int audio_index;
+static unsigned audio_fill,audio_chunk,audio_prefill;
+static int audio_priming,audio_fault;
+static uint64_t audio_output_frames,audio_submitted_frames,audio_waits;
+static HDC present_dc;
+static HBITMAP present_bitmap,present_old;
+static int present_w,present_h;
 static wchar_t notification[600];
 static ULONGLONG notification_until;
 static uint64_t audio_phase;
@@ -64,7 +72,8 @@ static void save_settings(void){
 }
 static void slot_path(wchar_t *out){ swprintf(out,32768,L"%ls\\slot-%d.msave",root,slot); }
 static void audio_reset(void){
-    if(audio_device) waveOutReset(audio_device);
+    if(audio_device){waveOutReset(audio_device);waveOutPause(audio_device);}
+    audio_index=0;audio_fill=0;audio_prefill=0;audio_priming=1;
     audio_phase=0; audio_samples=0; audio_sum[0]=audio_sum[1]=0;
 }
 static void audio_close(void){
@@ -72,41 +81,56 @@ static void audio_close(void){
     waveOutReset(audio_device);
     for(int i=0;i<8;i++) waveOutUnprepareHeader(audio_device,&audio_headers[i],sizeof(WAVEHDR));
     waveOutClose(audio_device); audio_device=NULL;
+    if(audio_event){CloseHandle(audio_event);audio_event=NULL;}
+    fprintf(stderr,"AUDIO output=%llu submitted=%llu waits=%llu fault=%d\n",audio_output_frames,audio_submitted_frames,audio_waits,audio_fault);
 }
 static void audio_open(void){
     WAVEFORMATEX fmt={WAVE_FORMAT_PCM,2,(DWORD)cfg.sample_rate,(DWORD)cfg.sample_rate*4,4,16,0};UINT selected=WAVE_MAPPER;
     for(UINT i=0;i<waveOutGetNumDevs();i++){WAVEOUTCAPSW caps;if(waveOutGetDevCapsW(i,&caps,sizeof caps)==MMSYSERR_NOERROR && !wcscmp(caps.szPname,cfg.audio_device)){selected=i;break;}}
-    if(waveOutOpen(&audio_device,selected,&fmt,0,0,CALLBACK_NULL)!=MMSYSERR_NOERROR){audio_device=NULL;message(L"A saída de áudio não aceitou a configuração. Escolha outro dispositivo ou frequência em Configurações > Áudio.");return;}
+    audio_event=CreateEventW(NULL,FALSE,FALSE,NULL);
+    if(!audio_event || waveOutOpen(&audio_device,selected,&fmt,(DWORD_PTR)audio_event,0,CALLBACK_EVENT)!=MMSYSERR_NOERROR){audio_device=NULL;if(audio_event)CloseHandle(audio_event);audio_event=NULL;message(L"A saída de áudio não aceitou a configuração. Escolha outro dispositivo ou frequência em Configurações > Áudio.");return;}
+    audio_chunk=(unsigned)cfg.sample_rate/100*2;audio_fault=0;audio_output_frames=audio_submitted_frames=audio_waits=0;
+    memset(audio_headers,0,sizeof audio_headers);
     for(int i=0;i<8;i++){
         audio_headers[i].lpData=(LPSTR)audio_buffers[i];audio_headers[i].dwBufferLength=sizeof audio_buffers[i];
-        waveOutPrepareHeader(audio_device,&audio_headers[i],sizeof(WAVEHDR));
+        if(waveOutPrepareHeader(audio_device,&audio_headers[i],sizeof(WAVEHDR))!=MMSYSERR_NOERROR){audio_fault=1;audio_close();message(L"Não foi possível preparar a saída de áudio.");return;}
     }
+    audio_reset();
+}
+static int audio_buffer_ready(void){
+    DWORD start=GetTickCount();
+    while(audio_headers[audio_index].dwFlags&WHDR_INQUEUE){
+        audio_waits++;WaitForSingleObject(audio_event,10);
+        if(GetTickCount()-start>1000){audio_fault=1;return 0;}
+    }return 1;
+}
+static int audio_submit(void){
+    WAVEHDR *h=&audio_headers[audio_index];h->dwBufferLength=audio_fill*sizeof(int16_t);
+    if(waveOutWrite(audio_device,h,sizeof *h)!=MMSYSERR_NOERROR){audio_fault=1;return 0;}
+    audio_submitted_frames+=audio_fill/2;audio_fill=0;audio_index=(audio_index+1)%8;
+    if(audio_priming && ++audio_prefill>=(unsigned)(cfg.latency==0?2:cfg.latency==1?4:6)){
+        audio_priming=0;if(!paused)waveOutRestart(audio_device);
+    }return 1;
 }
 static void audio_sink(const int16_t *samples,size_t count){
     /* Always drain synthesis during replay. Only device presentation is skipped. */
-    if(!audio_device || muted || (movie.target && glue_frame_count()<movie.target)) return;
-    int16_t converted[4096]; unsigned output=0, rate=glue_audio_sample_rate();
+    if(!audio_device || audio_fault || muted || (movie.target && glue_frame_count()<movie.target)) return;
+    unsigned rate=glue_audio_sample_rate();
     for(size_t i=0;i<count;i++){
         audio_sum[0]+=samples[2*i]; audio_sum[1]+=samples[2*i+1]; audio_samples++;audio_phase+=cfg.sample_rate;
         if(audio_phase>=rate){
             audio_phase-=rate;
-            if(output+2<=4096){int l=(int)(audio_sum[0]/(int)audio_samples),r=(int)(audio_sum[1]/(int)audio_samples);if(cfg.mono)l=r=(l+r)/2;converted[output++]=(int16_t)(l*volume/100);converted[output++]=(int16_t)(r*volume/100);}
+            if(!audio_fill && !audio_buffer_ready())return;
+            int l=(int)(audio_sum[0]/(int)audio_samples),r=(int)(audio_sum[1]/(int)audio_samples);if(cfg.mono)l=r=(l+r)/2;
+            audio_buffers[audio_index][audio_fill++]=(int16_t)(l*volume/100);audio_buffers[audio_index][audio_fill++]=(int16_t)(r*volume/100);audio_output_frames++;
             audio_sum[0]=audio_sum[1]=0;audio_samples=0;
-        }
-    }
-    if(!output)return;
-    int limit=cfg.latency==0?2:cfg.latency==1?4:8;
-    for(int n=0;n<limit;n++){
-        int i=(audio_index+n)%limit;WAVEHDR *h=&audio_headers[i];
-        if(!(h->dwFlags & WHDR_INQUEUE)){
-            memcpy(audio_buffers[i],converted,output*sizeof(int16_t));h->dwBufferLength=output*sizeof(int16_t);
-            waveOutWrite(audio_device,h,sizeof *h);audio_index=(i+1)%limit;return;
+            if(audio_fill==audio_chunk && !audio_submit())return;
         }
     }
 }
 static void set_paused(int value){
     if(paused==value)return;
-    paused=value;if(audio_device){if(paused)waveOutPause(audio_device);else waveOutRestart(audio_device);}
+    paused=value;if(audio_device){if(paused)waveOutPause(audio_device);else if(!audio_priming)waveOutRestart(audio_device);}
     QueryPerformanceCounter(&deadline);InvalidateRect(window,NULL,FALSE);
     navigation();
     if(!paused)SetFocus(window);
@@ -116,7 +140,7 @@ static uint8_t input_mask(void){
     uint8_t mask=0;for(int i=0;i<6;i++)if(key_down(keys[i]))mask|=1<<i;
     if(GetForegroundWindow()==window)mask|=input_read().pad;return mask;
 }
-static void paint(HDC dc,RECT client){
+static void paint_content(HDC dc,RECT client){
     int w=client.right,h=client.bottom;
     if(!running || paused){theme_render(dc,w,h,paused,framebuffer,rom_ready,slot);draw_notification(dc,w,h);return;}
     FillRect(dc,&client,background);
@@ -133,6 +157,14 @@ static void paint(HDC dc,RECT client){
     SetStretchBltMode(dc,cfg.filter?HALFTONE:COLORONCOLOR);
     StretchDIBits(dc,dest.left,dest.top,dest.right-dest.left,dest.bottom-dest.top,source.left,source.top,source.right-source.left,source.bottom-source.top,display,&info,DIB_RGB_COLORS,SRCCOPY);
     draw_notification(dc,w,h);
+}
+static void paint(HDC dc,RECT client){
+    int w=client.right,h=client.bottom;if(w<1||h<1)return;
+    if(!present_dc || present_w!=w || present_h!=h){
+        if(present_dc){SelectObject(present_dc,present_old);DeleteObject(present_bitmap);DeleteDC(present_dc);}
+        present_dc=CreateCompatibleDC(dc);present_bitmap=CreateCompatibleBitmap(dc,w,h);present_old=SelectObject(present_dc,present_bitmap);present_w=w;present_h=h;
+    }
+    paint_content(present_dc,client);BitBlt(dc,0,0,w,h,present_dc,0,0,SRCCOPY);
 }
 static int validate_rom(const wchar_t *path){
     FILE *f=_wfopen(path,L"rb");if(!f)return 0;uint8_t *data=malloc(MONICA_ROM_SIZE);if(!data){fclose(f);return 0;}
@@ -270,7 +302,7 @@ static int frame(const uint32_t *fb,int w,int h){
     memcpy(framebuffer,fb,sizeof framebuffer);
     if(movie.target){
         if(glue_state_hash()!=movie.state_hash){message(L"A reconstrução divergiu do save. O carregamento foi interrompido; o arquivo foi preservado.");quitting=1;return 1;}
-        movie.target=0;audio_reset();set_paused(1);SetWindowTextW(window,L"Mônica Recomp — save restaurado e verificado");
+        movie.target=0;audio_reset();set_paused(1);SetWindowTextW(window,L"Mônica no Castelo do Dragão");
     }
     InvalidateRect(window,NULL,FALSE);UpdateWindow(window);pump();
     while(paused && !quitting && !restart_requested){pump();Sleep(10);}
@@ -310,6 +342,20 @@ static void test_navigation(void){
     FILE *out=_wfopen(navigation_test_path,L"w");if(out){fprintf(out,"{\"menu_isolated\":%d,\"menu_restored\":%d,\"embedded_pages\":%d,\"page_switches\":%d,\"no_menu_bar\":%d}\n",isolated,restored,embedded,pages,GetMenu(window)==NULL);fclose(out);}
     running=paused=0;quitting=1;
 }
+static void test_audio(void){
+    FILE *out=_wfopen(audio_test_path,L"w");int rates[]={44100,48000,96000};int16_t silence[4096]={0};
+    muted=0;paused=0;cfg.latency=1;
+    for(int test=0;test<3;test++){
+        cfg.sample_rate=rates[test];audio_open();int opened=audio_device!=NULL;
+        if(opened){for(int f=0;f<100 && !audio_fault;f++){audio_sink(silence,2048);audio_sink(silence,1685);}if(audio_fill&&!audio_fault)audio_submit();}
+        uint64_t expected=(uint64_t)3733*100*rates[test]/glue_audio_sample_rate();
+        int pass=opened&&!audio_fault&&audio_output_frames==expected&&audio_submitted_frames==expected;
+        if(out)fprintf(out,"rate=%d output=%llu submitted=%llu expected=%llu waits=%llu pass=%d\n",rates[test],audio_output_frames,audio_submitted_frames,expected,audio_waits,pass);
+        if(audio_device){waveOutRestart(audio_device);DWORD start=GetTickCount();for(;;){int queued=0;for(int i=0;i<8;i++)queued|=!!(audio_headers[i].dwFlags&WHDR_INQUEUE);if(!queued||GetTickCount()-start>3000)break;WaitForSingleObject(audio_event,10);}}
+        audio_close();
+    }
+    if(out)fclose(out);quitting=1;
+}
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show){
     (void)previous;(void)command;wchar_t data[32768];if(!GetEnvironmentVariableW(L"LOCALAPPDATA",data,32768))GetTempPathW(32768,data);
     swprintf(root,32768,L"%ls\\MonicaRecompPrototype",data);
@@ -323,13 +369,14 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
         else if(!wcscmp(argv[i],L"--load")&&i+1<argc){wcsncpy(pending_load,argv[++i],32767);start_requested=1;}
         else if(!wcscmp(argv[i],L"--selftest-ui")&&i+1<argc)wcsncpy(ui_test_path,argv[++i],32767);
         else if(!wcscmp(argv[i],L"--selftest-navigation")&&i+1<argc)wcsncpy(navigation_test_path,argv[++i],32767);
+        else if(!wcscmp(argv[i],L"--selftest-audio")&&i+1<argc)wcsncpy(audio_test_path,argv[++i],32767);
     }LocalFree(argv);rom_ready=validate_rom(rom_path);QueryPerformanceFrequency(&frequency);
     background=CreateSolidBrush(RGB(12,31,26));font=CreateFontW(-18,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");title_font=CreateFontW(-36,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
     WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"MonicaRecomp";wc.hCursor=LoadCursor(NULL,IDC_ARROW);wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(101));RegisterClassW(&wc);
     
     HMENU menu=NULL;
     int widths[]={960,1280,1600,1920,2560,3840};int an=cfg.aspect==1?5:cfg.aspect==2?16:4,ad=cfg.aspect==1?4:cfg.aspect==2?9:3;RECT wr={0,0,widths[resolution],MulDiv(widths[resolution],ad,an)};AdjustWindowRect(&wr,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,FALSE);
-    window=CreateWindowW(L"MonicaRecomp",L"Mônica no Castelo do Dragão • Recomp",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,wr.right-wr.left,wr.bottom-wr.top,0,menu,instance,0);
+    window=CreateWindowW(L"MonicaRecomp",L"Mônica no Castelo do Dragão",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,wr.right-wr.left,wr.bottom-wr.top,0,menu,instance,0);
     const wchar_t *names[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o jogo",L"Sair"};int ids[]={PLAY,LOAD,SETTINGS,OPTIONS,OPEN_ROM,ABOUT,EXIT_APP};
     for(int i=0;i<MENU_COUNT;i++){
         controls[i]=CreateWindowW(L"BUTTON",names[i],WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,10,10,window,(HMENU)(INT_PTR)ids[i],instance,0);
@@ -339,7 +386,8 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
     wcscpy(asset_dir,art_path);wcscat(asset_dir,L"assets");wcscat(art_path,L"assets\\menu-forest.png");theme_init(art_path);navigation();SetTimer(window,1,16,NULL);
     input_init();input_select(cfg.device);input_configure(cfg.buttons);input_set_deadzone(cfg.deadzone);input_update();
     SetCurrentDirectoryW(root);wchar_t log[32768];swprintf(log,32768,L"%ls\\runtime.log",root);_wfreopen(log,L"w",stderr);
-    if(navigation_test_path[0]){test_navigation();}
+    if(audio_test_path[0]){test_audio();}
+    else if(navigation_test_path[0]){test_navigation();}
     else if(ui_test_path[0]){
         FILE *test=_wfopen(ui_test_path,L"w");if(test){fprintf(test,"{\"rom_valid\":%d,\"play_enabled\":%d,\"continue_enabled\":%d,\"select_enabled\":%d,\"about_enabled\":%d}\n",rom_ready,!!IsWindowEnabled(controls[0]),!!IsWindowEnabled(controls[1]),!!IsWindowEnabled(controls[4]),!!IsWindowEnabled(controls[5]));fclose(test);}quitting=1;
     }else{ShowWindow(window,show);UpdateWindow(window);if(cfg.fullscreen)toggle_fullscreen();SetFocus(controls[rom_ready?0:4]);}
@@ -354,6 +402,6 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
             else if(!quitting){message(glue_dispatch_miss_count()?L"Foi encontrado um trecho ainda não recompilado. A sessão foi interrompida. Consulte runtime.log para completar a recompilação.":L"A execução terminou. Reinicie o aplicativo para uma nova sessão.");quitting=1;}
         }Sleep(10);
     }
-    audio_close();replay_free(&movie);KillTimer(window,1);DestroyWindow(window);theme_close();DeleteObject(font);DeleteObject(title_font);DeleteObject(background);input_close();return 0;
+    audio_close();replay_free(&movie);KillTimer(window,1);DestroyWindow(window);theme_close();if(present_dc){SelectObject(present_dc,present_old);DeleteObject(present_bitmap);DeleteDC(present_dc);}DeleteObject(font);DeleteObject(title_font);DeleteObject(background);input_close();return 0;
 }
 
