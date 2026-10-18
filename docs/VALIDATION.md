@@ -40,3 +40,7 @@ Teste silencioso contra a saída WinMM real: 100 lotes de 3.733 frames de origem
 ## Revisão 0.7 — direções e botões
 
 Reproduzido no build anterior: pressionar cima entre os quadros 600 e 1200 causava dispatch ausente em 0x1942 no quadro 600. O perfil nativo passou de 4.986 para 5.010 endereços por banco. Foram testadas as máscaras 1, 2, 4, 8, 16, 32, 17, 33, 5, 9, 18 e 40 até o quadro 2400. Todos os roteiros nativos completaram com zero misses; framebuffer final e áudio acumulado coincidiram com o intérprete sobre o mesmo runtime. Isso não comprova cobertura de todas as fases. O aplicativo agora retorna ao menu se outra rota ainda não traduzida interromper a partida. Saves, controles e navegação integrada também passaram novamente.
+
+## Revisão 0.8 — Pause original do console
+
+Novo evento de aperto para NMI 0x0066, separado do menu do PC. Dois apertos nos quadros 700/1000, cada um segurado por dez quadros: exatamente duas NMIs em ambos os caminhos. Até o quadro 1800, framebuffer e áudio nativos coincidiram com a referência; zero misses. Save no quadro 850 (durante o Pause), restaurado em outro processo até 1800: mesmo estado, imagem e áudio. Save anterior da versão 0.7 no quadro 3500 também foi restaurado até 6000. O perfil contém agora 5.026 endereços. Patch do runtime aplicado a originais e comparado com a implementação testada. A API mantém os inputs antigos; o bit novo registra Pause para reprodução determinística.

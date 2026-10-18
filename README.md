@@ -8,7 +8,7 @@ Um projeto de estudo de recompilação estática de um jogo de Master System par
 
 ![Menu](docs/images/menu.png)
 
-## Interface 0.7
+## Interface 0.8
 
 As configurações agora são páginas dentro da janela principal, com abas de Controles, Vídeo, Áudio, O jogo, Projeto e Créditos. A barra de menus do Windows foi removida. Os botões do menu ficam ocultos enquanto essas páginas estão abertas. Há transições de página, destaque de seleção, nova logo de fã inspirada na marca clássica da Mônica e ícone incorporado ao executável. Os seletores de valores são componentes próprios, ajustados por setas, mouse ou controle, sem listas do Windows em janelas separadas. Avisos de mapeamento e notificações são exibidos dentro da interface. Concluir aplica as alterações; Descartar preserva a configuração anterior.
 
@@ -19,6 +19,15 @@ As configurações agora são páginas dentro da janela principal, com abas de C
 ## Áudio e apresentação na versão 0.6
 
 A saída WinMM acumula blocos fixos de 10 ms e inicia com uma reserva de 20/40/60 ms conforme a opção de latência. Quando um buffer está ocupado, aguarda sua liberação em vez de descartar o trecho. O vídeo é composto fora da tela e apresentado em uma única cópia. Os rótulos de recompilação/projeto de estudo foram retirados do menu; o contexto continua em Sobre/Projeto/Créditos e nesta documentação.
+
+## Pause
+
+| Ação | Teclado | Controle | Mouse |
+|---|---|---|---|
+| Pause original do console | P (remapeável) | Start / Options (remapeável) | Ícone Ⅱ no canto superior direito |
+| Menu da versão para PC | Esc | Back / Share (remapeável) | — |
+
+O Pause original envia uma NMI ao vetor 0x0066, por borda de aperto. Segurar o botão não repete o evento. O menu do PC oferece salvar/carregar e configurações, sem confundir esses dois comandos. Origem técnica: https://www.smspower.org/Development/PauseButton . Saves anteriores continuam aceitos; builds antigos não leem saves novos que contenham eventos de Pause.
 
 ## Licenças e permissões
 
@@ -70,7 +79,7 @@ Requer Windows x64, PowerShell, Git, CMake e Clang/MinGW com `mingw32-make` no P
 ./test-local.ps1 -RomPath 'C:/caminho/Monica no Castelo do Dragao (Brazil).sms'
 ```
 
-O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.7/MonicaRecomp-v0.7.exe**; mantenha `SDL3.dll` e `assets` junto dele.
+O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.8/MonicaRecomp-v0.8.exe**; mantenha `SDL3.dll` e `assets` junto dele.
 
 ROM suportada: 262144 bytes; CRC32 `01D67C0B`; SHA256 `484FDF3CB85C1BFD1CA938CFD59FD582A06EE20F9F3686BB3DFD1F7A70193086`.
 
@@ -82,13 +91,13 @@ O repositório contém o frontend, os patches e os perfis de endereços. **Não 
 |---|---|
 | Mover | Setas |
 | Botões 1 / 2 | Z / X |
-| Pausar ou continuar | Esc |
+| Abrir/fechar o menu do PC | Esc |
 | Salvar / carregar slot | F5 / F9 |
 | Controles | F2 |
 | Alternar tela cheia | F11 |
 | Navegar / selecionar no menu | Setas, Tab e Enter |
 
-Os comandos são remapeáveis em **Controles**. Em gamepads padronizados, direcional/analógico movem a seleção, o botão sul confirma, o leste volta e Start pausa. O slot é escolhido no menu superior **Slot de save**.
+Os comandos são remapeáveis em **Controles**. Em gamepads padronizados, direcional/analógico movem a seleção, o botão sul confirma, o leste volta e Start pausa. O menu integrado usa o slot 1 nesta versão.
 
 As configurações, saves e `runtime.log` ficam em `%LOCALAPPDATA%/MonicaRecompPrototype`. O aplicativo não altera a ROM. Feche e reabra a versão mais recente após compilar alterações.
 

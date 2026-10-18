@@ -13,6 +13,7 @@ static uint64_t audio_hash=UINT64_C(14695981039346656037);
 static void audio(const int16_t *p,size_t n){ audio_hash=monica_hash(p,n*4,audio_hash); }
 static uint8_t script(uint64_t f){
     if(getenv("MONICA_VERIFY_IDLE"))return 0;
+    if(getenv("MONICA_VERIFY_PAUSE") && ((f>=700&&f<710)||(f>=1000&&f<1010)))return SMS_PAD_START;
     const char *action=getenv("MONICA_VERIFY_ACTION");
     if(action && f>=600 && f<1200)return (uint8_t)strtoul(action,NULL,0);
     if(f>=200 && f<210) return SMS_PAD_B1;
@@ -49,5 +50,6 @@ int wmain(int argc,wchar_t **argv){
     free(rom); glue_init(false,0); glue_require_native(true);glue_set_audio_sink(audio); glue_set_frame_callback(frame);
     const char *dump=getenv("MONICA_VERIFY_DUMP");if(dump)glue_set_dump(end_frame,dump);
     if(getenv("MONICA_VERIFY_REFERENCE"))glue_run_interp();else glue_run_step();
+    if(getenv("MONICA_VERIFY_PAUSE") && glue_console_pause_count()!=2){fprintf(stderr,"PAUSE_COUNT %u != 2\n",glue_console_pause_count());failed=1;}
     replay_free(&movie); return (failed || glue_frame_count()!=end_frame || glue_dispatch_miss_count()) ? 1 : 0;
 }

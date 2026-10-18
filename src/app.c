@@ -35,6 +35,8 @@ static wchar_t rom_path[32768], root[32768], ini[32768], pending_load[32768];
 static Replay movie;
 static int running, paused, start_requested, quitting, restart_requested, slot=1, full_screen;
 static int session_ended;
+static int console_pause_pulse;
+static int console_pause_hover;
 
 
 static uint32_t framebuffer[256*192];
@@ -138,8 +140,9 @@ static void set_paused(int value){
 }
 static int key_down(int key){return GetForegroundWindow()==window && (GetAsyncKeyState(key)&0x8000);}
 static uint8_t input_mask(void){
-    uint8_t mask=0;for(int i=0;i<6;i++)if(key_down(keys[i]))mask|=1<<i;
-    if(GetForegroundWindow()==window)mask|=input_read().pad;return mask;
+    uint8_t mask=0;for(int i=0;i<7;i++)if(key_down(keys[i]))mask|=1<<i;
+    if(GetForegroundWindow()==window){InputState input=input_read();mask|=input.pad;if(input.menu&INPUT_START)mask|=SMS_PAD_START;}
+    if(console_pause_pulse){mask|=SMS_PAD_START;console_pause_pulse=0;}return mask;
 }
 static void paint_content(HDC dc,RECT client){
     int w=client.right,h=client.bottom;
@@ -157,6 +160,9 @@ static void paint_content(HDC dc,RECT client){
     BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=256;info.bmiHeader.biHeight=-192;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
     SetStretchBltMode(dc,cfg.filter?HALFTONE:COLORONCOLOR);
     StretchDIBits(dc,dest.left,dest.top,dest.right-dest.left,dest.bottom-dest.top,source.left,source.top,source.right-source.left,source.bottom-source.top,display,&info,DIB_RGB_COLORS,SRCCOPY);
+    RECT button={w-48,14,w-14,48};HBRUSH b=CreateSolidBrush(console_pause_hover?RGB(146,34,43):RGB(12,31,26));HPEN p=CreatePen(PS_SOLID,1,RGB(211,184,112));HGDIOBJ ob=SelectObject(dc,b),op=SelectObject(dc,p);
+    RoundRect(dc,button.left,button.top,button.right,button.bottom,10,10);SelectObject(dc,ob);SelectObject(dc,op);DeleteObject(b);DeleteObject(p);
+    b=CreateSolidBrush(RGB(255,225,159));RECT bar={w-37,24,w-33,39};FillRect(dc,&bar,b);OffsetRect(&bar,8,0);FillRect(dc,&bar,b);DeleteObject(b);
     draw_notification(dc,w,h);
 }
 static void paint(HDC dc,RECT client){
@@ -250,6 +256,8 @@ static LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     }
     case WM_SIZE:if(controls[0])theme_layout(hwnd,controls,MENU_COUNT);preferences_resize();InvalidateRect(hwnd,NULL,FALSE);return 0;
     case WM_TIMER:if((!running || paused)&&!preferences_active()){InvalidateRect(hwnd,NULL,FALSE);for(int i=0;i<MENU_COUNT;i++)InvalidateRect(controls[i],NULL,FALSE);}return 0;
+    case WM_MOUSEMOVE:{RECT r;GetClientRect(hwnd,&r);console_pause_hover=LOWORD(lp)>r.right-48&&LOWORD(lp)<r.right-14&&HIWORD(lp)>=14&&HIWORD(lp)<48;return 0;}
+    case WM_LBUTTONUP:{RECT r;GetClientRect(hwnd,&r);if(running&&!paused&&!preferences_active()&&LOWORD(lp)>r.right-48&&LOWORD(lp)<r.right-14&&HIWORD(lp)>=14&&HIWORD(lp)<48)console_pause_pulse=1;return 0;}
     case PREFS_APPLIED:apply_preferences();return 0;
     case PREFS_CLOSED:navigation();SetFocus(controls[running?0:rom_ready?0:4]);return 0;
     case WM_COMMAND:
@@ -268,6 +276,7 @@ static LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         }return 0;
     case WM_KEYDOWN:
         if(lp & (1L<<30))return 0;
+        if(running&&!paused&&wp==(WPARAM)keys[6]){console_pause_pulse=1;return 0;}
         if((!running || paused) && (wp==VK_UP || wp==VK_DOWN)){SetFocus(controls[wp==VK_UP?MENU_COUNT-1:rom_ready?0:4]);return 0;}
         if((!running || paused) && wp==VK_RETURN){SendMessageW(hwnd,WM_COMMAND,GetDlgCtrlID(controls[rom_ready?0:4]),0);return 0;}
         if(wp==VK_ESCAPE)SendMessageW(hwnd,WM_COMMAND,PAUSE,0);if(wp==VK_F5)SendMessageW(hwnd,WM_COMMAND,SAVE,0);
@@ -286,7 +295,8 @@ static void pump(void){
     }
     input_update();static uint16_t prior;uint16_t now=GetForegroundWindow()==window?input_read().menu:0;
     uint16_t pressed=now&~prior;
-    if(!preferences_active() && (pressed&INPUT_START)){if(running)set_paused(!paused);else if(rom_ready)SendMessageW(window,WM_COMMAND,PLAY,0);}
+    if(!preferences_active() && !running && (pressed&INPUT_START) && rom_ready)SendMessageW(window,WM_COMMAND,PLAY,0);
+    if(!preferences_active() && running && (pressed&INPUT_BACK)){set_paused(!paused);prior=now;return;}
     if((!running || paused) && !preferences_active()){
         int index=rom_ready?0:4;for(int i=0;i<MENU_COUNT;i++)if(GetFocus()==controls[i])index=i;
         if(pressed&(INPUT_UP|INPUT_DOWN)){int delta=pressed&INPUT_UP?MENU_COUNT-1:1;for(int tries=0;tries<MENU_COUNT;tries++){index=(index+delta)%MENU_COUNT;if(IsWindowEnabled(controls[index]))break;}SetFocus(controls[index]);}

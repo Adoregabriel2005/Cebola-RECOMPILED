@@ -14,7 +14,7 @@
 #include <uxtheme.h>
 
 static HWND nav[6];static DWORD page_started,screen_started;static int closing;
-static HWND dialog,owner,tabs,items[96],key_buttons[6],pad_combos[8],device_combo,deadzone_combo;
+static HWND dialog,owner,tabs,items[96],key_buttons[7],pad_combos[8],device_combo,deadzone_combo;
 static HWND video_controls[8],audio_controls[6];
 static Preferences pending,original,*target;
 static InputDevice devices[32];static int device_count,item_count,current_tab,capture_key=-1,capture_pad=-1,release_pad;
@@ -22,18 +22,18 @@ static HBRUSH paper;static HFONT normal,heading,caption,widget_font;static wchar
 typedef struct{uint32_t *pixels;UINT w,h;BITMAPINFO info;} Picture;
 static Picture cover,advert,forest;
 static wchar_t feedback[200];
-static const wchar_t *actions[]={L"Cima",L"Baixo",L"Esquerda",L"Direita",L"Botão 1",L"Botão 2"};
-static const wchar_t *pad_actions[]={L"Botão 1",L"Botão 2",L"Pausa",L"Voltar no menu",L"Cima",L"Baixo",L"Esquerda",L"Direita"};
+static const wchar_t *actions[]={L"Cima",L"Baixo",L"Esquerda",L"Direita",L"Botão 1",L"Botão 2",L"Pause (console)"};
+static const wchar_t *pad_actions[]={L"Botão 1",L"Botão 2",L"Pause console",L"Menu",L"Cima",L"Baixo",L"Esquerda",L"Direita"};
 static int clamp(int v,int low,int high){return v<low?low:v>high?high:v;}
 static void read_int(const wchar_t *section,const wchar_t *name,int *v,int low,int high,const wchar_t *path){*v=clamp(GetPrivateProfileIntW(section,name,*v,path),low,high);}
 static void write_int(const wchar_t *s,const wchar_t *k,int v,const wchar_t *path){wchar_t value[32];swprintf(value,32,L"%d",v);WritePrivateProfileStringW(s,k,value,path);}
 void preferences_defaults(Preferences *p){
-    memset(p,0,sizeof *p);int initial[]={VK_UP,VK_DOWN,VK_LEFT,VK_RIGHT,'Z','X'};memcpy(p->keys,initial,sizeof initial);
+    memset(p,0,sizeof *p);int initial[]={VK_UP,VK_DOWN,VK_LEFT,VK_RIGHT,'Z','X','P'};memcpy(p->keys,initial,sizeof initial);
     for(int i=0;i<8;i++)p->buttons[i]=-1;p->deadzone=25;p->resolution=1;p->volume=100;p->sample_rate=48000;p->brightness=100;p->latency=1;
 }
 void preferences_load(Preferences *p,const wchar_t *path){
     preferences_defaults(p);wchar_t key[32],device[512];
-    for(int i=0;i<6;i++){swprintf(key,32,L"key%d",i);read_int(L"input",key,&p->keys[i],1,254,path);}
+    for(int i=0;i<7;i++){swprintf(key,32,L"key%d",i);read_int(L"input",key,&p->keys[i],1,254,path);}
     for(int i=0;i<8;i++){swprintf(key,32,L"button%d",i);read_int(L"input",key,&p->buttons[i],-1,255,path);}
     GetPrivateProfileStringW(L"input",L"device",L"",device,512,path);WideCharToMultiByte(CP_UTF8,0,device,-1,p->device,512,NULL,NULL);
     read_int(L"input",L"deadzone",&p->deadzone,5,80,path);
@@ -48,7 +48,7 @@ void preferences_load(Preferences *p,const wchar_t *path){
 }
 void preferences_save(const Preferences *p,const wchar_t *path){
     wchar_t k[32],device[512];
-    for(int i=0;i<6;i++){swprintf(k,32,L"key%d",i);write_int(L"input",k,p->keys[i],path);}
+    for(int i=0;i<7;i++){swprintf(k,32,L"key%d",i);write_int(L"input",k,p->keys[i],path);}
     for(int i=0;i<8;i++){swprintf(k,32,L"button%d",i);write_int(L"input",k,p->buttons[i],path);}
     MultiByteToWideChar(CP_UTF8,0,p->device,-1,device,512);WritePrivateProfileStringW(L"input",L"device",device,path);
     write_int(L"input",L"deadzone",p->deadzone,path);
@@ -127,7 +127,7 @@ static void build_page(int page){
     if(page==0){
         label(L"Dispositivo USB / Bluetooth",32,84,450);device_combo=combo(32,114,475,10);widget(L"BUTTON",L"Atualizar",WS_TABSTOP,520,114,115,30,11);rebuild_devices();
         label(L"TECLADO",32,196,300);
-        for(int i=0;i<6;i++){wchar_t name[80];key_name(pending.keys[i],name);label(actions[i],32,235+i*43,160);key_buttons[i]=widget(L"BUTTON",name,WS_TABSTOP,195,230+i*43,220,33,100+i);}
+        for(int i=0;i<7;i++){wchar_t name[80];key_name(pending.keys[i],name);label(actions[i],32,235+i*37,160);key_buttons[i]=widget(L"BUTTON",name,WS_TABSTOP,195,230+i*37,220,33,100+i);}
         label(L"Zona morta do analógico",32,518,340);deadzone_combo=combo(32,549,190,12);for(int i=0;i<13;i++){wchar_t p[20];swprintf(p,20,L"%d%%",10+i*5);option(deadzone_combo,p);}select_at(deadzone_combo,clamp((pending.deadzone-10)/5,0,12));
         label(L"BOTÕES DO CONTROLE SELECIONADO",600,304,390);
         int n=input_button_count();if(n<32)n=32;if(n>128)n=128;
@@ -271,7 +271,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         if(id==2){input_select(original.device);input_configure(original.buttons);input_set_deadzone(original.deadzone);closing=1;screen_started=GetTickCount();return 0;}
         if(id==11){rebuild_devices();return 0;}
         if(id==10 && HIWORD(wp)==CBN_SELCHANGE){int i=selection(device_combo);snprintf(pending.device,sizeof pending.device,"%s",i>0&&i<=device_count?devices[i-1].key:"");input_select(pending.device);input_update();InvalidateRect(hwnd,NULL,FALSE);return 0;}
-        if(id>=100&&id<106){capture_key=id-100;SetWindowTextW(key_buttons[capture_key],L"Pressione uma tecla…");return 0;}
+        if(id>=100&&id<107){capture_key=id-100;SetWindowTextW(key_buttons[capture_key],L"Pressione uma tecla…");return 0;}
         if(id>=300&&id<308){capture_pad=id-300;release_pad=0;SetWindowTextW(hwnd,L"Solte e pressione o botão desejado no controle");return 0;}
         if(id==50)ShellExecuteW(hwnd,L"open",L"https://turmadamonica.fandom.com/pt-br/wiki/M%C3%B4nica_no_Castelo_do_Drag%C3%A3o",NULL,NULL,SW_SHOWNORMAL);
         if(id==51)ShellExecuteW(hwnd,L"open",L"https://www.smspower.org/Games/MonicaNoCasteloDoDragao-SMS",NULL,NULL,SW_SHOWNORMAL);
@@ -296,7 +296,7 @@ void preferences_open(HWND parent,Preferences *p,int tab,const wchar_t *assets){
 int preferences_route(MSG *msg){
     if(!dialog)return 0;
     if(capture_key>=0 && msg->message==WM_KEYDOWN){
-        int key=(int)msg->wParam;if(key!=VK_ESCAPE){int used=0;for(int i=0;i<6;i++)if(i!=capture_key&&pending.keys[i]==key)used=1;
+        int key=(int)msg->wParam;if(key!=VK_ESCAPE){int used=0;for(int i=0;i<7;i++)if(i!=capture_key&&pending.keys[i]==key)used=1;
             if(used || key==VK_F2||key==VK_F5||key==VK_F9||key==VK_F11){wcscpy(feedback,L"Tecla em uso. Escolha outra para continuar.");InvalidateRect(dialog,NULL,FALSE);return 1;}pending.keys[capture_key]=key;}
         wchar_t name[80];key_name(pending.keys[capture_key],name);SetWindowTextW(key_buttons[capture_key],name);capture_key=-1;feedback[0]=0;InvalidateRect(dialog,NULL,FALSE);return 1;
     }

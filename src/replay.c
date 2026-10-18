@@ -16,7 +16,7 @@ uint32_t monica_crc32(const void *data,size_t n){
 }
 void replay_free(Replay *r){ free(r->inputs); memset(r,0,sizeof *r); }
 int replay_append(Replay *r,uint8_t input){
-    if(r->count>=REPLAY_MAX_FRAMES || (input & ~0x3f)) return 0;
+    if(r->count>=REPLAY_MAX_FRAMES || (input & ~0x7f)) return 0;
     if(r->count==r->capacity){
         uint32_t cap=r->capacity ? r->capacity*2 : 4096;
         if(cap>REPLAY_MAX_FRAMES) cap=REPLAY_MAX_FRAMES;
@@ -58,7 +58,7 @@ int replay_load(const wchar_t *path,Replay *out){
     r.inputs=malloc(r.count ? r.count : 1); if(!r.inputs) goto done;
     if(fread(r.inputs,1,r.count,f)!=r.count || fgetc(f)!=EOF) goto done;
     if(monica_crc32(r.inputs,r.count)!=get32(h+40)) goto done;
-    for(uint32_t i=0;i<r.count;i++) if(r.inputs[i] & ~0x3f) goto done;
+    for(uint32_t i=0;i<r.count;i++) if(r.inputs[i] & ~0x7f) goto done;
     ok=1;
 done:
     fclose(f);

@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$RomPath,[string]$WorkRoot=(Join-Path $PSScriptRoot 'work'))
 $ErrorActionPreference = 'Stop'
 $rom = (Resolve-Path -LiteralPath $RomPath).Path
-$verify = Join-Path $PSScriptRoot 'local-bin/v0.7/monica-verify.exe'
+$verify = Join-Path $PSScriptRoot 'local-bin/v0.8/monica-verify.exe'
 if (-not (Test-Path -LiteralPath $verify)) { throw 'Compile o projeto antes de executar os testes.' }
 $testRoot = [IO.Path]::GetFullPath((Join-Path $WorkRoot "validation-$([Guid]::NewGuid().ToString('N'))"))
 New-Item -ItemType Directory -Force $testRoot | Out-Null
@@ -29,15 +29,27 @@ try {
         }
         Write-Host 'PASS: 12 roteiros de botões com 2400 quadros, sem trecho ausente.'
     } finally { $env:MONICA_VERIFY_ACTION=$oldAction }
+    $oldPause=$env:MONICA_VERIFY_PAUSE
+    try {
+        $env:MONICA_VERIFY_PAUSE='1'
+        & $verify $rom 1800 850 pause.msave *> pause-continuous.log
+        if($LASTEXITCODE){throw 'Falha nos dois acionamentos do Pause do console.'}
+        & $verify $rom 1800 0 unused.msave pause.msave *> pause-restored.log
+        if($LASTEXITCODE){throw 'Falha ao carregar com o jogo pausado.'}
+        $a=(Select-String -Path pause-continuous.log -Pattern '^RESULT ').Line
+        $b=(Select-String -Path pause-restored.log -Pattern '^RESULT ').Line
+        if(-not $a -or $a -ne $b){throw 'Save com Pause divergiu.'}
+        Write-Host 'PASS: Pause do console em duas bordas, segurar sem repetir, save pausado/restauração.'
+    } finally { $env:MONICA_VERIFY_PAUSE=$oldPause }
     $bytes = [IO.File]::ReadAllBytes((Join-Path $testRoot 'case-650.msave'))
     $bytes[70] = $bytes[70] -bxor 1
     [IO.File]::WriteAllBytes((Join-Path $testRoot 'corrupt.msave'),$bytes)
     & $verify $rom 800 0 unused.msave corrupt.msave *> corrupt.log
     if ($LASTEXITCODE -ne 3) { throw 'Arquivo corrompido não foi rejeitado corretamente.' }
     Write-Host 'PASS: save corrompido rejeitado.'
-    & (Join-Path $PSScriptRoot 'local-bin/v0.7/monica-system-verify.exe') (Join-Path $testRoot 'preferences.ini')
+    & (Join-Path $PSScriptRoot 'local-bin/v0.8/monica-system-verify.exe') (Join-Path $testRoot 'preferences.ini')
     if ($LASTEXITCODE) { throw 'Falha nos testes de controles/configurações.' }
-    $app = Join-Path $PSScriptRoot 'local-bin/v0.7/MonicaRecomp-v0.7.exe'
+    $app = Join-Path $PSScriptRoot 'local-bin/v0.8/MonicaRecomp-v0.8.exe'
     $report = Join-Path $testRoot 'navigation.json'
     Start-Process -FilePath $app -ArgumentList @('--selftest-navigation', ('"'+$report+'"'), '--data-dir', ('"'+$testRoot+'"')) -Wait -WindowStyle Hidden
     $nav = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json

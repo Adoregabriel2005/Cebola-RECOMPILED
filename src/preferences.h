@@ -4,7 +4,7 @@
 #define PREFS_APPLIED (WM_APP+20)
 #define PREFS_CLOSED (WM_APP+21)
 typedef struct {
-    int keys[6];
+    int keys[7];
     char device[512];int buttons[8],deadzone;
     int resolution,aspect,scale,filter,scanlines,brightness,fullscreen;
     int volume,muted,sample_rate,mono,latency;wchar_t audio_device[128];

@@ -1,18 +1,29 @@
 diff --git a/runner/glue.c b/runner/glue.c
-index d615ad8..d4dc431 100644
+index d615ad8..5ea408b 100644
 --- a/runner/glue.c
 +++ b/runner/glue.c
-@@ -43,6 +43,9 @@ static uint64_t  g_frame;
+@@ -43,6 +43,11 @@ static uint64_t  g_frame;
  static uint64_t  g_frame_limit;
  static jmp_buf   g_quit_env;
  static bool      g_running;
 +static bool      g_native_only;
 +static bool      g_step_irq_pending;
++static bool      g_console_nmi_pending;
++static unsigned  g_console_nmi_count;
 +void glue_require_native(bool enabled){ g_native_only=enabled; }
  
  /* ---- always-on timing instrumentation (PRINCIPLES #17: query, don't probe) --
   * g_frame counts VDP frame boundaries (== real VBlanks). g_irq_taken counts how
-@@ -1107,7 +1110,9 @@ void sms_dispatch_miss(uint16_t addr){
+@@ -453,7 +458,7 @@ static void frame_completed(void){
+     g_frame++;
+     { static int armed=-1; if(armed<0){armed=getenv("SMS_IC_TRACE")?1:0;}
+       if(armed) fprintf(stderr,"IC %llu %llu\n",(unsigned long long)g_frame,(unsigned long long)g_frame_ic); g_frame_ic=0; }
+-    if (g_input_cb) g_pad1 = g_input_cb(g_frame);   /* scripted input for the upcoming frame */
++    if (g_input_cb) glue_set_pad1(g_input_cb(g_frame));
+     if (g_audio_sink){
+         /* Drain this frame's PSG output to the sink (interleaved stereo). The
+          * PSG was advanced up to the current absolute cycle in advance_vdp(). */
+@@ -1107,7 +1112,9 @@ void sms_dispatch_miss(uint16_t addr){
          }
      }
  
@@ -23,15 +34,16 @@ index d615ad8..d4dc431 100644
      uint64_t _c0 = g_z80.cyc;
      hybrid_interpret(addr);
      mb_interp(addr, g_z80.cyc - _c0);
-@@ -1152,6 +1157,7 @@ void glue_init(bool is_gg, uint64_t frame_limit){
+@@ -1152,6 +1159,8 @@ void glue_init(bool is_gg, uint64_t frame_limit){
      g_psg_cyc = 0;
      g_pad1 = g_pad2 = 0;                  /* controllers idle */
      g_hybrid_cyc = g_hybrid_calls = 0;
 +    g_step_irq_pending=false;
++    g_console_nmi_pending=false;g_console_nmi_count=0;
      glue_diff_init();                    /* differential harness (env-gated, no-op unless SMS_DIFF_ADDR) */
  }
  
-@@ -1164,8 +1170,19 @@ void glue_run_interp(void){
+@@ -1164,8 +1173,20 @@ void glue_run_interp(void){
      g_hz_init = true;
      g_hz.pc = 0x0000;            /* reset vector; the game sets SP/IM1 itself */
  
@@ -48,10 +60,11 @@ index d615ad8..d4dc431 100644
 +                    visited[bank][pc]=1;fprintf(trace,"%02X %04X\n",bank,pc);
 +                }
 +            }
++            if(g_console_nmi_pending){g_console_nmi_pending=false;g_console_nmi_count++;z80_gen_nmi(&g_hz);}
              if (vdp_irq_asserted() && g_hz.iff1 && !g_hz.int_pending)
                  z80_gen_int(&g_hz, 0xFF);          /* IM1 vector 0x0038 */
              z80_step(&g_hz); g_frame_ic++;
-@@ -1174,10 +1191,40 @@ void glue_run_interp(void){
+@@ -1174,10 +1195,45 @@ void glue_run_interp(void){
          }
      }
      g_running = false;
@@ -74,6 +87,11 @@ index d615ad8..d4dc431 100644
 +                g_dbg_pc=g_z80.pc;monica_step();g_frame_ic++;
 +            }
 +            if(g_z80.ei_block){g_z80.ei_block=0;}
++            else if(g_console_nmi_pending){
++                g_console_nmi_pending=false;g_console_nmi_count++;g_z80.iff1=false;g_z80.halted=false;
++                g_z80.sp=(uint16_t)(g_z80.sp-2);sms_write16(g_z80.sp,g_z80.pc);g_z80.pc=0x0066;g_z80.cyc+=11;
++                g_z80.r=(uint8_t)((g_z80.r&0x80)|((g_z80.r+1)&0x7f));
++            }
 +            else if(g_step_irq_pending && g_z80.iff1){
 +                g_step_irq_pending=false;
 +                g_z80.iff1=g_z80.iff2=false;g_z80.halted=false;
@@ -92,7 +110,15 @@ index d615ad8..d4dc431 100644
  void glue_run(void){
      g_running = true;
      if (setjmp(g_quit_env) == 0){
-@@ -1257,3 +1304,33 @@ void     glue_set_input_cb(uint8_t (*cb)(uint64_t frame)){ g_input_cb = cb; }
+@@ -1251,9 +1307,43 @@ void     glue_set_audio_sink(void (*sink)(const int16_t *stereo_frames, size_t f
+ }
+ uint32_t glue_audio_sample_rate(void){ return psg_sample_rate(); }
+ double   glue_frame_rate(void){ return (double)SMS_Z80_HZ / (double)SMS_CYC_PER_FRAME; }
+-void     glue_set_pad1(uint8_t pressed){ g_pad1 = pressed; }
++void     glue_set_pad1(uint8_t pressed){if((pressed&SMS_PAD_START)&&!(g_pad1&SMS_PAD_START))g_console_nmi_pending=true;g_pad1=pressed;}
++unsigned glue_console_pause_count(void){return g_console_nmi_count;}
+ void     glue_set_pad2(uint8_t pressed){ g_pad2 = pressed; }
+ void     glue_set_input_cb(uint8_t (*cb)(uint64_t frame)){ g_input_cb = cb; }
  uint64_t glue_frame_count(void){ return g_frame; }
  int      glue_dispatch_miss_count(void){ return g_miss_count; }
  size_t   glue_rom_size(void){ return g_rom_size; }
@@ -119,6 +145,9 @@ index d615ad8..d4dc431 100644
 +    h=monica_hash(&g_sync_deadline,sizeof g_sync_deadline,h);
 +    h=monica_hash(&g_frame,sizeof g_frame,h);
 +    h=monica_hash(&g_step_irq_pending,sizeof g_step_irq_pending,h);
++    /* Preserve old save digests when the new console button is idle. */
++    if(g_console_nmi_pending)h=monica_hash(&g_console_nmi_pending,sizeof g_console_nmi_pending,h);
++    if(g_pad1&SMS_PAD_START)h=monica_hash(&g_pad1,sizeof g_pad1,h);
 +    h=monica_hash(&g_psg_cyc,sizeof g_psg_cyc,h);
 +    FILE *f=tmpfile();
 +    if(!f || !psg_save_state(f)){ if(f) fclose(f); return 0; }
@@ -127,7 +156,7 @@ index d615ad8..d4dc431 100644
 +    fclose(f); return h;
 +}
 diff --git a/runner/glue.h b/runner/glue.h
-index 6b2160c..89db39b 100644
+index 6b2160c..1f26ef9 100644
 --- a/runner/glue.h
 +++ b/runner/glue.h
 @@ -7,9 +7,12 @@
@@ -151,3 +180,11 @@ index 6b2160c..89db39b 100644
  
  /* Oracle reference run: execute the WHOLE game under the vendored superzazu
   * Z80 interpreter (instead of the recompiled code) over the SAME bus / VDP /
+@@ -66,6 +70,7 @@ enum {
+  * SDL host refreshes these from the keyboard each frame; headless runs leave
+  * them 0, so the ports read idle. */
+ void     glue_set_pad1(uint8_t pressed);
++unsigned glue_console_pause_count(void);
+ void     glue_set_pad2(uint8_t pressed);
+ 
+ /* Headless scripted input: when set, the runner calls this once per completed
