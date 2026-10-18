@@ -5,7 +5,7 @@
 
 #define MONICA_ROM_CRC 0x01D67C0Bu
 #define MONICA_ROM_SIZE 262144u
-#define REPLAY_BUILD 2u
+#define REPLAY_BUILD 3u
 #define REPLAY_MAX_FRAMES 10000000u
 
 typedef struct {

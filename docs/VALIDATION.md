@@ -44,3 +44,14 @@ Reproduzido no build anterior: pressionar cima entre os quadros 600 e 1200 causa
 ## Revisão 0.8 — Pause original do console
 
 Novo evento de aperto para NMI 0x0066, separado do menu do PC. Dois apertos nos quadros 700/1000, cada um segurado por dez quadros: exatamente duas NMIs em ambos os caminhos. Até o quadro 1800, framebuffer e áudio nativos coincidiram com a referência; zero misses. Save no quadro 850 (durante o Pause), restaurado em outro processo até 1800: mesmo estado, imagem e áudio. Save anterior da versão 0.7 no quadro 3500 também foi restaurado até 6000. O perfil contém agora 5.026 endereços. Patch do runtime aplicado a originais e comparado com a implementação testada. A API mantém os inputs antigos; o bit novo registra Pause para reprodução determinística.
+
+
+## Revisão 0.9 — porta, região e avanço de fase
+
+Reproduzidos misses 0x1950 na primeira porta e 0x1631 na abertura sem atalhos. O perfil passou de 5.026 para 7.115 pares banco/endereço observados, com fechamento estático de ramos diretos até 9.670 candidatos. A ferramenta tools/aot_reachability.c usa mapeamentos de banco observados; não demonstra cobertura de destinos indiretos desconhecidos nem de todas as fases.
+
+Corrigida a porta de controle $3F e seus espelhos para TR/TH na máquina export. A ROM passa a selecionar português na primeira casa. Testes diretos exercitam as duas respostas TH da detecção de região, espelho de porta e saídas TR. Referências técnicas: https://www.smspower.org/Development/RegionDetection e https://www.smspower.org/Development/PeripheralPorts .
+
+Roteiros em tests/routes/: first-door até 1300 (save 1000); first-dialogue até 3500 (save 1300); first-road até 5000 (save 3500); first-boss até 5500 (save 5100); round-two até 8500 (save 7900). Comparam framebuffer e áudio à referência; saves comparam também hash do estado na restauração em outro processo. Não há interpretador de fallback na execução nativa. Os roteiros representam a primeira casa, sua saída, combate inicial, primeiro chefe e chegada à segunda fase. Lojas e fases posteriores ainda não foram integralmente verificadas.
+
+Saves passaram para REPLAY_BUILD=3: estado da porta de I/O incluído no hash e comportamento da região corrigido. Arquivos anteriores são preservados, mas precisam de build antigo para reprodução; não são migrados por adivinhação.

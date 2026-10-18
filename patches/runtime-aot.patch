@@ -1,8 +1,8 @@
 diff --git a/runner/glue.c b/runner/glue.c
-index d615ad8..5ea408b 100644
+index d615ad8..80f2fa2 100644
 --- a/runner/glue.c
 +++ b/runner/glue.c
-@@ -43,6 +43,11 @@ static uint64_t  g_frame;
+@@ -43,6 +43,12 @@ static uint64_t  g_frame;
  static uint64_t  g_frame_limit;
  static jmp_buf   g_quit_env;
  static bool      g_running;
@@ -10,11 +10,38 @@ index d615ad8..5ea408b 100644
 +static bool      g_step_irq_pending;
 +static bool      g_console_nmi_pending;
 +static unsigned  g_console_nmi_count;
++static uint8_t   g_io_control=0xff;
 +void glue_require_native(bool enabled){ g_native_only=enabled; }
  
  /* ---- always-on timing instrumentation (PRINCIPLES #17: query, don't probe) --
   * g_frame counts VDP frame boundaries (== real VBlanks). g_irq_taken counts how
-@@ -453,7 +458,7 @@ static void frame_completed(void){
+@@ -419,6 +425,9 @@ uint8_t sms_io_in(uint8_t p){
+         if (g_pad2 & SMS_PAD_RIGHT) b &= (uint8_t)~0x02;
+         if (g_pad2 & SMS_PAD_B1)    b &= (uint8_t)~0x04;
+         if (g_pad2 & SMS_PAD_B2)    b &= (uint8_t)~0x08;
++        if(!(g_io_control&0x04))b=(uint8_t)((b&~0x08)|((g_io_control&0x40)?0x08:0));
++        if(!(g_io_control&0x02))b=(uint8_t)((b&~0x40)|((g_io_control&0x20)?0x40:0));
++        if(!(g_io_control&0x08))b=(uint8_t)((b&~0x80)|((g_io_control&0x80)?0x80:0));
+         return b;                                        /* bit4 reset, bit6/7 TH: not pressed */
+     } else {
+         uint8_t b = 0xFF;                                /* $DC */
+@@ -428,6 +437,7 @@ uint8_t sms_io_in(uint8_t p){
+         if (g_pad1 & SMS_PAD_RIGHT) b &= (uint8_t)~0x08;
+         if (g_pad1 & SMS_PAD_B1)    b &= (uint8_t)~0x10;
+         if (g_pad1 & SMS_PAD_B2)    b &= (uint8_t)~0x20;
++        if(!(g_io_control&0x01))b=(uint8_t)((b&~0x20)|((g_io_control&0x10)?0x20:0));
+         if (g_pad2 & SMS_PAD_UP)    b &= (uint8_t)~0x40;
+         if (g_pad2 & SMS_PAD_DOWN)  b &= (uint8_t)~0x80;
+         return b;
+@@ -438,6 +448,7 @@ void sms_io_out(uint8_t p, uint8_t v){
+     g_io_out_count[p]++;
+     if (p < 0x40){                                       /* memory / GG system / IO control */
+         if (g_is_gg && p == 0x06) psg_write_stereo(v);   /* GG stereo routing register */
++        if((p&1)&&(!g_is_gg||p>=0x07))g_io_control=v;
+         return;                                          /* $3E mem-control etc.: not modelled */
+     }
+     if (p < 0x80){                                       /* PSG data ($40-$7F, canonically $7F) */
+@@ -453,7 +464,7 @@ static void frame_completed(void){
      g_frame++;
      { static int armed=-1; if(armed<0){armed=getenv("SMS_IC_TRACE")?1:0;}
        if(armed) fprintf(stderr,"IC %llu %llu\n",(unsigned long long)g_frame,(unsigned long long)g_frame_ic); g_frame_ic=0; }
@@ -23,7 +50,7 @@ index d615ad8..5ea408b 100644
      if (g_audio_sink){
          /* Drain this frame's PSG output to the sink (interleaved stereo). The
           * PSG was advanced up to the current absolute cycle in advance_vdp(). */
-@@ -1107,7 +1112,9 @@ void sms_dispatch_miss(uint16_t addr){
+@@ -1107,7 +1118,9 @@ void sms_dispatch_miss(uint16_t addr){
          }
      }
  
@@ -34,16 +61,17 @@ index d615ad8..5ea408b 100644
      uint64_t _c0 = g_z80.cyc;
      hybrid_interpret(addr);
      mb_interp(addr, g_z80.cyc - _c0);
-@@ -1152,6 +1159,8 @@ void glue_init(bool is_gg, uint64_t frame_limit){
+@@ -1152,6 +1165,9 @@ void glue_init(bool is_gg, uint64_t frame_limit){
      g_psg_cyc = 0;
      g_pad1 = g_pad2 = 0;                  /* controllers idle */
      g_hybrid_cyc = g_hybrid_calls = 0;
 +    g_step_irq_pending=false;
 +    g_console_nmi_pending=false;g_console_nmi_count=0;
++    g_io_control=0xff;
      glue_diff_init();                    /* differential harness (env-gated, no-op unless SMS_DIFF_ADDR) */
  }
  
-@@ -1164,8 +1173,20 @@ void glue_run_interp(void){
+@@ -1164,8 +1180,20 @@ void glue_run_interp(void){
      g_hz_init = true;
      g_hz.pc = 0x0000;            /* reset vector; the game sets SP/IM1 itself */
  
@@ -64,7 +92,7 @@ index d615ad8..5ea408b 100644
              if (vdp_irq_asserted() && g_hz.iff1 && !g_hz.int_pending)
                  z80_gen_int(&g_hz, 0xFF);          /* IM1 vector 0x0038 */
              z80_step(&g_hz); g_frame_ic++;
-@@ -1174,10 +1195,45 @@ void glue_run_interp(void){
+@@ -1174,10 +1202,45 @@ void glue_run_interp(void){
          }
      }
      g_running = false;
@@ -110,7 +138,7 @@ index d615ad8..5ea408b 100644
  void glue_run(void){
      g_running = true;
      if (setjmp(g_quit_env) == 0){
-@@ -1251,9 +1307,43 @@ void     glue_set_audio_sink(void (*sink)(const int16_t *stereo_frames, size_t f
+@@ -1251,9 +1314,44 @@ void     glue_set_audio_sink(void (*sink)(const int16_t *stereo_frames, size_t f
  }
  uint32_t glue_audio_sample_rate(void){ return psg_sample_rate(); }
  double   glue_frame_rate(void){ return (double)SMS_Z80_HZ / (double)SMS_CYC_PER_FRAME; }
@@ -145,6 +173,7 @@ index d615ad8..5ea408b 100644
 +    h=monica_hash(&g_sync_deadline,sizeof g_sync_deadline,h);
 +    h=monica_hash(&g_frame,sizeof g_frame,h);
 +    h=monica_hash(&g_step_irq_pending,sizeof g_step_irq_pending,h);
++    h=monica_hash(&g_io_control,sizeof g_io_control,h);
 +    /* Preserve old save digests when the new console button is idle. */
 +    if(g_console_nmi_pending)h=monica_hash(&g_console_nmi_pending,sizeof g_console_nmi_pending,h);
 +    if(g_pad1&SMS_PAD_START)h=monica_hash(&g_pad1,sizeof g_pad1,h);

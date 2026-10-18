@@ -1,6 +1,6 @@
 # Escopo das licenças
 
-A licença MIT em LICENSE cobre somente as contribuições próprias deste projeto, na medida em que seus contribuidores detenham direitos para concedê-la: arquivos em src/, scripts PowerShell, CMakeLists.txt e documentação original. Referências, citações e conteúdo de terceiros permanecem sob seus próprios termos.
+A licença MIT em LICENSE cobre somente as contribuições próprias deste projeto, na medida em que seus contribuidores detenham direitos para concedê-la: arquivos em src/, tools/, tests/, scripts PowerShell, CMakeLists.txt e documentação original. Referências, citações e conteúdo de terceiros permanecem sob seus próprios termos.
 
 Não são abrangidos por essa concessão: ROM; código ou dados derivados do jogo; código gerado; smsggrecomp e seu runtime; trechos/contexto de terceiros nos patches; marcas, personagens, música, sprites, capas, anúncios, screenshots e ilustrações/adaptações de fã em assets/ ou docs/images/. Não se concede direito sobre esses elementos por incluí-los no repositório. Uma licença da página que hospeda uma imagem tampouco concede automaticamente os direitos sobre o jogo retratado.
 

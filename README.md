@@ -8,7 +8,15 @@ Um projeto de estudo de recompilação estática de um jogo de Master System par
 
 ![Menu](docs/images/menu.png)
 
-## Interface 0.8
+## Revisão 0.9: primeira porta e avanço de fase
+
+Corrigidos o trecho ausente na primeira porta (0x1950) e a abertura sem pular a introdução (0x1631). O controle de I/O do console agora responde à detecção de região da ROM brasileira, mantendo os diálogos em português. O perfil contém 7.115 endereços observados e 9.670 candidatos após seguir ramos diretos; isso não comprova todos os destinos indiretos ou todo o jogo.
+
+Há roteiros reproduzíveis para a primeira casa, diálogo, retorno à fase, primeira sala de chefe e chegada à segunda fase, comparando imagem e áudio nativos à referência. A versão 0.9 usa saves de revisão 3 por causa da correção de região. Saves anteriores são preservados, mas não são compatíveis; comece uma nova partida.
+
+![Diálogo da primeira porta](docs/images/primeiro-dialogo.png)
+
+## Interface
 
 As configurações agora são páginas dentro da janela principal, com abas de Controles, Vídeo, Áudio, O jogo, Projeto e Créditos. A barra de menus do Windows foi removida. Os botões do menu ficam ocultos enquanto essas páginas estão abertas. Há transições de página, destaque de seleção, nova logo de fã inspirada na marca clássica da Mônica e ícone incorporado ao executável. Os seletores de valores são componentes próprios, ajustados por setas, mouse ou controle, sem listas do Windows em janelas separadas. Avisos de mapeamento e notificações são exibidos dentro da interface. Concluir aplica as alterações; Descartar preserva a configuração anterior.
 
@@ -27,7 +35,7 @@ A saída WinMM acumula blocos fixos de 10 ms e inicia com uma reserva de 20/40/6
 | Pause original do console | P (remapeável) | Start / Options (remapeável) | Ícone Ⅱ no canto superior direito |
 | Menu da versão para PC | Esc | Back / Share (remapeável) | — |
 
-O Pause original envia uma NMI ao vetor 0x0066, por borda de aperto. Segurar o botão não repete o evento. O menu do PC oferece salvar/carregar e configurações, sem confundir esses dois comandos. Origem técnica: https://www.smspower.org/Development/PauseButton . Saves anteriores continuam aceitos; builds antigos não leem saves novos que contenham eventos de Pause.
+O Pause original envia uma NMI ao vetor 0x0066, por borda de aperto. Segurar o botão não repete o evento. O menu do PC oferece salvar/carregar e configurações, sem confundir esses dois comandos. Origem técnica: https://www.smspower.org/Development/PauseButton . O evento fica registrado nos saves. Veja a compatibilidade da revisão 0.9 acima.
 
 ## Licenças e permissões
 
@@ -79,7 +87,7 @@ Requer Windows x64, PowerShell, Git, CMake e Clang/MinGW com `mingw32-make` no P
 ./test-local.ps1 -RomPath 'C:/caminho/Monica no Castelo do Dragao (Brazil).sms'
 ```
 
-O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.8/MonicaRecomp-v0.8.exe**; mantenha `SDL3.dll` e `assets` junto dele.
+O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.9/MonicaRecomp-v0.9.exe**; mantenha `SDL3.dll` e `assets` junto dele.
 
 ROM suportada: 262144 bytes; CRC32 `01D67C0B`; SHA256 `484FDF3CB85C1BFD1CA938CFD59FD582A06EE20F9F3686BB3DFD1F7A70193086`.
 
