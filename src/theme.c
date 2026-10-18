@@ -8,7 +8,7 @@
 
 static uint32_t *art;
 static HBITMAP logo;
-static BITMAP logo_size;
+static RECT logo_bounds;
 static DWORD entered;
 static UINT art_w,art_h;
 static BITMAPINFO art_info;
@@ -26,6 +26,25 @@ static void word(HDC dc,int x,int y,int w,int h,const wchar_t *s,HFONT f,COLORRE
 }
 static HFONT make_font(int size,int weight,const wchar_t *family){
     return CreateFontW(-sy(size),0,0,0,weight,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,family);
+}
+static HBITMAP load_logo(const wchar_t *path){
+    IWICImagingFactory *factory=NULL;IWICBitmapDecoder *decoder=NULL;IWICBitmapFrameDecode *frame=NULL;IWICFormatConverter *converter=NULL;UINT w=0,h=0;HBITMAP bitmap=NULL;
+    HRESULT hr=CoCreateInstance(&CLSID_WICImagingFactory,NULL,CLSCTX_INPROC_SERVER,&IID_IWICImagingFactory,(void**)&factory);
+    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateDecoderFromFilename(factory,path,NULL,GENERIC_READ,WICDecodeMetadataCacheOnLoad,&decoder);
+    if(SUCCEEDED(hr))hr=IWICBitmapDecoder_GetFrame(decoder,0,&frame);
+    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateFormatConverter(factory,&converter);
+    if(SUCCEEDED(hr))hr=IWICFormatConverter_Initialize(converter,(IWICBitmapSource*)frame,&GUID_WICPixelFormat32bppPBGRA,WICBitmapDitherTypeNone,NULL,0,WICBitmapPaletteTypeCustom);
+    if(SUCCEEDED(hr))hr=IWICFormatConverter_GetSize(converter,&w,&h);
+    if(SUCCEEDED(hr)&&w&&h&&w<=8192&&h<=8192){
+        BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-(LONG)h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
+        uint32_t *pixels=NULL;bitmap=CreateDIBSection(NULL,&info,DIB_RGB_COLORS,(void**)&pixels,NULL,0);
+        if(bitmap){hr=IWICFormatConverter_CopyPixels(converter,NULL,w*4,w*h*4,(BYTE*)pixels);
+            logo_bounds=(RECT){(LONG)w,(LONG)h,0,0};
+            if(SUCCEEDED(hr))for(UINT y=0;y<h;y++)for(UINT x=0;x<w;x++)if((pixels[y*w+x]>>24)>8){if((LONG)x<logo_bounds.left)logo_bounds.left=x;if((LONG)y<logo_bounds.top)logo_bounds.top=y;if((LONG)x>=logo_bounds.right)logo_bounds.right=x+1;if((LONG)y>=logo_bounds.bottom)logo_bounds.bottom=y+1;}
+            if(FAILED(hr)||logo_bounds.right<=logo_bounds.left){DeleteObject(bitmap);bitmap=NULL;}
+        }
+    }
+    if(converter)IWICFormatConverter_Release(converter);if(frame)IWICBitmapFrameDecode_Release(frame);if(decoder)IWICBitmapDecoder_Release(decoder);if(factory)IWICImagingFactory_Release(factory);return bitmap;
 }
 int theme_init(const wchar_t *path){
     IWICImagingFactory *factory=NULL;IWICBitmapDecoder *decoder=NULL;IWICBitmapFrameDecode *frame=NULL;IWICFormatConverter *converter=NULL;
@@ -45,8 +64,8 @@ int theme_init(const wchar_t *path){
     if(FAILED(hr)){free(art);art=NULL;return 0;}
     art_info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);art_info.bmiHeader.biWidth=art_w;art_info.bmiHeader.biHeight=-(LONG)art_h;
     art_info.bmiHeader.biPlanes=1;art_info.bmiHeader.biBitCount=32;
-    wchar_t file[32768];wcsncpy(file,path,32767);wchar_t *slash=wcsrchr(file,L'\\');wchar_t *forward=wcsrchr(file,L'/');if(forward && (!slash || forward>slash))slash=forward;if(slash)wcscpy(slash+1,L"game-logo.bmp");
-    logo=(HBITMAP)LoadImageW(NULL,file,IMAGE_BITMAP,0,0,LR_LOADFROMFILE|LR_CREATEDIBSECTION);if(logo)GetObject(logo,sizeof logo_size,&logo_size);entered=GetTickCount();return 1;
+    wchar_t file[32768];wcsncpy(file,path,32767);wchar_t *slash=wcsrchr(file,L'\\');wchar_t *forward=wcsrchr(file,L'/');if(forward && (!slash || forward>slash))slash=forward;if(slash)wcscpy(slash+1,L"title-logo.png");
+    logo=load_logo(file);entered=GetTickCount();return 1;
 }
 static void free_canvas(void){
     if(canvas){SelectObject(canvas,previous_bitmap);DeleteObject(canvas_bitmap);DeleteDC(canvas);canvas=NULL;}
@@ -67,11 +86,12 @@ void theme_render(HDC dc,int w,int h,int paused,const uint32_t *fb,int ready,int
     }
     if(logo){
         HDC image=CreateCompatibleDC(canvas);HGDIOBJ old=SelectObject(image,logo);SetStretchBltMode(canvas,HALFTONE);
-        StretchBlt(canvas,sx(77),sy(104),sx(615),sy(98),image,0,0,logo_size.bmWidth,logo_size.bmHeight,SRCCOPY);SelectObject(image,old);DeleteDC(image);
+        int lw=logo_bounds.right-logo_bounds.left,lh=logo_bounds.bottom-logo_bounds.top;double scale=fmin((double)sx(570)/lw,(double)sy(180)/lh);int dw=(int)(lw*scale),dh=(int)(lh*scale);
+        BLENDFUNCTION blend={AC_SRC_OVER,0,255,AC_SRC_ALPHA};AlphaBlend(canvas,sx(77),sy(55)+(sy(180)-dh)/2,dw,dh,image,logo_bounds.left,logo_bounds.top,lw,lh,blend);SelectObject(image,old);DeleteDC(image);
     }else word(canvas,75,78,620,110,L"MÔNICA",title,cream,DT_LEFT|DT_SINGLELINE);
-    word(canvas,80,64,500,26,L"RECOMPILADO  •  PROJETO DE ESTUDO",small,gold,DT_LEFT|DT_SINGLELINE);
-    word(canvas,82,224,470,32,paused?L"Um respiro antes da próxima aventura.":L"O castelo espera por você.",label,RGB(193,214,189),DT_LEFT|DT_SINGLELINE);
-    word(canvas,991,35,250,24,L"PROJETO DE ESTUDO  /  0.5",small,RGB(252,245,213),DT_RIGHT|DT_SINGLELINE);
+    word(canvas,80,26,500,26,L"RECOMPILADO  •  PROJETO DE ESTUDO",small,gold,DT_LEFT|DT_SINGLELINE);
+    word(canvas,82,242,470,28,paused?L"Um respiro antes da próxima aventura.":L"O castelo espera por você.",label,RGB(193,214,189),DT_LEFT|DT_SINGLELINE);
+    word(canvas,991,35,250,24,L"PROJETO DE ESTUDO  /  0.5.1",small,RGB(252,245,213),DT_RIGHT|DT_SINGLELINE);
     if(paused && fb){
         RECT border={sx(797),sy(333),sx(1211),sy(649)};fill(canvas,border,RGB(239,198,106));
         BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=256;info.bmiHeader.biHeight=-192;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;

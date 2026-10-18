@@ -28,3 +28,7 @@ A interface oferece enquadramento sem esticar, mas não câmera panorâmica com 
 ## Seletores integrados
 
 O componente próprio foi testado para mudança por teclado, passagem entre o primeiro e o último valor, leitura Unicode, limpeza de opções e ausência do estilo de janela popup. As seis páginas foram renderizadas pelo próprio aplicativo; Controles também foi conferida em 1024×640. Os testes de navegação e salvamento foram repetidos na revisão 0.5.
+
+## Logo 0.5.1
+
+Nova logo transparente renderizada pelo WIC em BGRA pré-multiplicado, composta com AlphaBlend e ajustada mantendo a proporção. Verificados texto, composição no menu e estados com/sem ROM. PNG RGBA de 2060×763 com alpha de 0 a 255. Compilação concluída; o núcleo do jogo não mudou nesta revisão.

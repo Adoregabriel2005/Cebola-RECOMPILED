@@ -26,4 +26,4 @@
 
 ROM, personagens, artes, marcas e código original do jogo continuam sujeitos aos seus direitos. Finalidade educacional e exigência de ROM própria não criam uma licença automática. Não foi atribuída uma licença geral que pretenda cobrir os componentes de terceiros.
 
-- Logo do título: imagem de referência fornecida pelo usuário, com os direitos dos respectivos titulares. app-icon.png/app.ico: nova ilustração de fã feita pelo ImageGen integrado; não é um ícone oficial. O prompt está em assets/icon-art-prompt.txt.
+- Logo do título: title-logo.png é uma nova adaptação de fã feita com ImageGen, inspirada na marca clássica e nas referências fornecidas pelo usuário. Não é uma logo oficial. O prompt está em assets/title-logo-prompt.txt. A marca e os elementos originais continuam pertencendo aos respectivos titulares. app-icon.png/app.ico: nova ilustração de fã feita pelo ImageGen integrado; não é um ícone oficial. O prompt está em assets/icon-art-prompt.txt.

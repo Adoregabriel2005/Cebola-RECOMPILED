@@ -1,7 +1,7 @@
 param([Parameter(Mandatory=$true)][string]$RomPath,[string]$WorkRoot=(Join-Path $PSScriptRoot 'work'))
 $ErrorActionPreference = 'Stop'
 $rom = (Resolve-Path -LiteralPath $RomPath).Path
-$verify = Join-Path $PSScriptRoot 'local-bin/v0.5/monica-verify.exe'
+$verify = Join-Path $PSScriptRoot 'local-bin/v0.5.1/monica-verify.exe'
 if (-not (Test-Path -LiteralPath $verify)) { throw 'Compile o projeto antes de executar os testes.' }
 $testRoot = [IO.Path]::GetFullPath((Join-Path $WorkRoot "validation-$([Guid]::NewGuid().ToString('N'))"))
 New-Item -ItemType Directory -Force $testRoot | Out-Null
@@ -24,9 +24,9 @@ try {
     & $verify $rom 800 0 unused.msave corrupt.msave *> corrupt.log
     if ($LASTEXITCODE -ne 3) { throw 'Arquivo corrompido não foi rejeitado corretamente.' }
     Write-Host 'PASS: save corrompido rejeitado.'
-    & (Join-Path $PSScriptRoot 'local-bin/v0.5/monica-system-verify.exe') (Join-Path $testRoot 'preferences.ini')
+    & (Join-Path $PSScriptRoot 'local-bin/v0.5.1/monica-system-verify.exe') (Join-Path $testRoot 'preferences.ini')
     if ($LASTEXITCODE) { throw 'Falha nos testes de controles/configurações.' }
-    $app = Join-Path $PSScriptRoot 'local-bin/v0.5/MonicaRecomp-v0.5.exe'
+    $app = Join-Path $PSScriptRoot 'local-bin/v0.5.1/MonicaRecomp-v0.5.1.exe'
     $report = Join-Path $testRoot 'navigation.json'
     Start-Process -FilePath $app -ArgumentList @('--selftest-navigation', ('"'+$report+'"'), '--data-dir', ('"'+$testRoot+'"')) -Wait -WindowStyle Hidden
     $nav = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
