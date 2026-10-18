@@ -27,3 +27,7 @@
 ROM, personagens, artes, marcas e código original do jogo continuam sujeitos aos seus direitos. Finalidade educacional e exigência de ROM própria não criam uma licença automática. Não foi atribuída uma licença geral que pretenda cobrir os componentes de terceiros.
 
 - Logo do título: title-logo.png é uma nova adaptação de fã feita com ImageGen, inspirada na marca clássica e nas referências fornecidas pelo usuário. Não é uma logo oficial. O prompt está em assets/title-logo-prompt.txt. A marca e os elementos originais continuam pertencendo aos respectivos titulares. app-icon.png/app.ico: nova ilustração de fã feita pelo ImageGen integrado; não é um ícone oficial. O prompt está em assets/icon-art-prompt.txt.
+
+## Textos de licença e escopo
+
+Contribuições próprias: LICENSE (MIT), sujeito a LICENSE_SCOPE.md. SDL3: LICENSES/SDL3-zlib.txt; HIDAPI: alternativa BSD escolhida, LICENSES/HIDAPI-BSD-3-Clause.txt; superzazu/z80: LICENSES/superzazu-z80-MIT.txt. A base smsggrecomp continua com autorização pendente. Consulte docs/DIREITOS.md. Esses documentos não concedem direitos sobre personagens, marcas ou o cartucho.

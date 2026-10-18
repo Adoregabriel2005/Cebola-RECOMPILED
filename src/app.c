@@ -34,6 +34,7 @@ static HBRUSH background;
 static wchar_t rom_path[32768], root[32768], ini[32768], pending_load[32768];
 static Replay movie;
 static int running, paused, start_requested, quitting, restart_requested, slot=1, full_screen;
+static int session_ended;
 
 
 static uint32_t framebuffer[256*192];
@@ -254,7 +255,7 @@ static LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     case WM_COMMAND:
         switch(LOWORD(wp)){
         case OPEN_ROM:if(!running)choose_rom();break;
-        case PLAY:if(!running && rom_ready){rom_ready=validate_rom(rom_path);if(rom_ready)start_requested=1;else navigation();}break;
+        case PLAY:if(!running && rom_ready){rom_ready=validate_rom(rom_path);if(rom_ready){pending_load[0]=0;start_requested=1;}else navigation();}break;
         case PAUSE:if(running)set_paused(!paused);break;
         case SAVE:if(running){set_paused(1);save_game();}break;
         case LOAD:if(running)set_paused(1);load_game();break;
@@ -393,13 +394,14 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
     }else{ShowWindow(window,show);UpdateWindow(window);if(cfg.fullscreen)toggle_fullscreen();SetFocus(controls[rom_ready?0:4]);}
     while(!quitting){
         pump();if(start_requested){
+            if(session_ended){start_requested=0;if(restart_process())quitting=1;else message(L"Não foi possível iniciar uma nova sessão.");continue;}
             start_requested=0;if(!validate_rom(rom_path)){message(L"Escolha a ROM correta para iniciar.");continue;}
             if(pending_load[0]&&!replay_load(pending_load,&movie)){message(L"Save inválido ou incompatível.");pending_load[0]=0;continue;}
             if(!glue_load_rom_wide(rom_path)){message(L"Falha ao ler a ROM.");continue;}
             for(int i=0;i<MENU_COUNT;i++)ShowWindow(controls[i],SW_HIDE);EnableMenuItem(menu,OPEN_ROM,MF_BYCOMMAND|MF_GRAYED);EnableMenuItem(menu,PLAY,MF_BYCOMMAND|MF_GRAYED);
             SetFocus(window);running=1;paused=0;glue_init(false,0);glue_require_native(true);glue_set_audio_sink(audio_sink);glue_set_frame_callback(frame);audio_open();QueryPerformanceCounter(&deadline);glue_run_step();audio_close();running=0;
             if(restart_requested){if(restart_process())quitting=1;else{message(L"Não foi possível reiniciar para carregar o save.");restart_requested=0;}}
-            else if(!quitting){message(glue_dispatch_miss_count()?L"Foi encontrado um trecho ainda não recompilado. A sessão foi interrompida. Consulte runtime.log para completar a recompilação.":L"A execução terminou. Reinicie o aplicativo para uma nova sessão.");quitting=1;}
+            else if(!quitting){session_ended=1;paused=0;navigation();InvalidateRect(window,NULL,FALSE);message(glue_dispatch_miss_count()?L"Este trecho ainda não foi traduzido. A partida foi interrompida e os detalhes foram registrados em runtime.log. Seus saves existentes foram preservados.":L"A partida terminou. Você pode iniciar uma nova sessão pelo menu.");}
         }Sleep(10);
     }
     audio_close();replay_free(&movie);KillTimer(window,1);DestroyWindow(window);theme_close();if(present_dc){SelectObject(present_dc,present_old);DeleteObject(present_bitmap);DeleteDC(present_dc);}DeleteObject(font);DeleteObject(title_font);DeleteObject(background);input_close();return 0;

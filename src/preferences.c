@@ -232,7 +232,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
             draw_text(dc,40,253,950,68,L"PERSONAGENS E UNIVERSO  •  Maurício de Sousa e titulares da Turma da Mônica. Marcas, personagens, gráficos, músicas, capas e demais elementos do jogo pertencem aos respectivos titulares.",normal,RGB(245,236,212));
             draw_text(dc,40,337,950,95,L"Este é um projeto de fã, independente, não oficial e educacional. Não inclui a ROM. Exigir uma ROM do usuário não concede licença nem garante isenção de direitos autorais. A reprodução de materiais de época não transfere seus direitos ao projeto.",normal,RGB(245,236,212));
             draw_text(dc,40,447,950,85,L"BASES E BIBLIOTECAS  •  smsggrecomp (mstan; sem licença declarada na revisão usada), superzazu/z80 (MIT) e SDL3 (zlib). O repositório fornece patches e scripts; não redistribui o runtime completo da base nem código derivado da ROM.",normal,RGB(180,217,159));
-            draw_text(dc,40,549,950,55,L"Consulte THIRD_PARTY.md para origens e licenças. Créditos individuais adicionais só serão incluídos quando confirmados por uma fonte verificável.",caption,RGB(180,217,159));
+            draw_text(dc,40,549,950,55,L"Código próprio: MIT. Textos e limites em LICENSE_SCOPE.md e THIRD_PARTY.md. A base sem licença declarada e o material do jogo continuam com permissões pendentes.",caption,RGB(180,217,159));
         }
         SetMapMode(dc,MM_TEXT);SetViewportOrgEx(dc,0,0,NULL);BitBlt(screen,0,0,r.right,r.bottom,dc,0,0,SRCCOPY);SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);if(msg==WM_PAINT)EndPaint(hwnd,&ps);return 0;
     }

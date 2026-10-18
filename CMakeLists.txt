@@ -24,7 +24,7 @@ target_link_libraries(monica-headless PRIVATE monica-core)
 add_executable(monica-verify src/verify.c)
 target_link_libraries(monica-verify PRIVATE monica-core)
 add_executable(MonicaRecomp WIN32 src/app.c src/theme.c src/input.c src/preferences.c src/choice.c src/app.rc)
-set_target_properties(MonicaRecomp PROPERTIES OUTPUT_NAME "MonicaRecomp-v0.6")
+set_target_properties(MonicaRecomp PROPERTIES OUTPUT_NAME "MonicaRecomp-v0.7")
 add_executable(monica-theme-preview src/theme_preview.c src/theme.c)
 target_include_directories(monica-theme-preview PRIVATE ${ENGINE}/runner)
 target_link_libraries(monica-theme-preview PRIVATE user32 gdi32 ole32 windowscodecs uuid m msimg32)
@@ -40,6 +40,8 @@ target_link_libraries(monica-system-verify PRIVATE SDL3::SDL3 user32 gdi32 shell
 add_custom_command(TARGET MonicaRecomp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:MonicaRecomp>/assets"
   COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:MonicaRecomp>/assets"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/LICENSES" "$<TARGET_FILE_DIR:MonicaRecomp>/LICENSES"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE_SCOPE.md" "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY.md" "$<TARGET_FILE_DIR:MonicaRecomp>"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:SDL3::SDL3-shared>" "$<TARGET_FILE_DIR:MonicaRecomp>")
 if(MINGW)
   target_link_options(monica-verify PRIVATE -municode)

@@ -13,6 +13,8 @@ static uint64_t audio_hash=UINT64_C(14695981039346656037);
 static void audio(const int16_t *p,size_t n){ audio_hash=monica_hash(p,n*4,audio_hash); }
 static uint8_t script(uint64_t f){
     if(getenv("MONICA_VERIFY_IDLE"))return 0;
+    const char *action=getenv("MONICA_VERIFY_ACTION");
+    if(action && f>=600 && f<1200)return (uint8_t)strtoul(action,NULL,0);
     if(f>=200 && f<210) return SMS_PAD_B1;
     if(f>=600 && f<900) return SMS_PAD_RIGHT;
     if(f>=950 && f<970) return SMS_PAD_B2|SMS_PAD_RIGHT;

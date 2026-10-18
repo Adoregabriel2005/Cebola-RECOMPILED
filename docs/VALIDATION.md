@@ -36,3 +36,7 @@ Nova logo transparente renderizada pelo WIC em BGRA pré-multiplicado, composta 
 ## Revisão 0.6 — saída audiovisual
 
 Teste silencioso contra a saída WinMM real: 100 lotes de 3.733 frames de origem, entregues em dois fragmentos por lote, sem espera artificial do produtor. O caminho de liberação dos buffers foi exercitado por pressão da fila. Produção e envio coincidiram em 44.100 Hz (73.585), 48.000 Hz (80.092) e 96.000 Hz (160.185), sem falha. Esse teste verifica contagem e envio; não comprova qualidade audível da música nem ausência de underruns em todos os drivers. Saves, controles e navegação integrada também passaram novamente. A apresentação do jogo agora compõe o fundo e a imagem em um buffer persistente e faz uma única cópia para a janela; falta avaliação perceptiva durante uma partida na máquina do usuário.
+
+## Revisão 0.7 — direções e botões
+
+Reproduzido no build anterior: pressionar cima entre os quadros 600 e 1200 causava dispatch ausente em 0x1942 no quadro 600. O perfil nativo passou de 4.986 para 5.010 endereços por banco. Foram testadas as máscaras 1, 2, 4, 8, 16, 32, 17, 33, 5, 9, 18 e 40 até o quadro 2400. Todos os roteiros nativos completaram com zero misses; framebuffer final e áudio acumulado coincidiram com o intérprete sobre o mesmo runtime. Isso não comprova cobertura de todas as fases. O aplicativo agora retorna ao menu se outra rota ainda não traduzida interromper a partida. Saves, controles e navegação integrada também passaram novamente.
