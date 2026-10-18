@@ -1,28 +1,30 @@
-# Mônica Recomp 0.10.0-preview.1
+# Mônica Recomp 0.10.0 — Windows x64 portátil
 
-**Pré-release de código para geração local. Não é uma versão estável nem um pacote pronto para jogar.**
+## Baixar e jogar
 
-O ZIP contém o frontend, ferramentas próprias, patches, documentação e materiais do projeto. Não inclui ROM, executável, DLLs, código C gerado ou uma cópia completa do runtime da dependência.
+1. Baixe MonicaRecomp-v0.10.0-windows-x64.zip na página Releases.
+2. Extraia o ZIP inteiro. Não execute o programa de dentro do arquivo compactado.
+3. Abra MonicaRecomp.exe na pasta MonicaRecomp.
+4. Clique em Selecionar ROM e escolha sua cópia compatível de Mônica no Castelo do Dragão (Brazil). Depois clique em Jogar.
 
-## Como usar
+Não é necessário instalar compiladores ou usar PowerShell para jogar com o pacote portátil. Mantenha SDL3.dll, assets/ e as licenças juntos do executável. A ROM não acompanha o download.
 
-1. Extraia o ZIP em uma pasta de trabalho.
-2. Tenha sua ROM compatível e as ferramentas descritas em docs/REQUISITOS.md instaladas no PATH.
-3. Abra o PowerShell na pasta extraída monica-recomp e execute:
+ROM suportada: 262144 bytes, CRC32 01D67C0B, SHA256 484FDF3CB85C1BFD1CA938CFD59FD582A06EE20F9F3686BB3DFD1F7A70193086.
 
-```powershell
-./build-local.ps1 -RomPath 'C:/caminho/Monica no Castelo do Dragao (Brazil).sms'
-./test-local.ps1 -RomPath 'C:/caminho/Monica no Castelo do Dragao (Brazil).sms'
-```
+## Controles padrão
 
-4. O aplicativo gerado fica em local-bin/v0.10/MonicaRecomp-v0.10.exe. Mantenha SDL3.dll, assets/ e as licenças dessa pasta juntos. A geração ocorre com a ROM local do usuário.
+Setas: mover; Z/X: botões 1/2; P: Pause do console; Esc: menu do PC; F5/F9: salvar/carregar; F11: tela cheia. O remapeamento fica em Controles.
 
-Saves da versão 0.9 continuam compatíveis com a 0.10 (revisão 3). Saves anteriores não são convertidos automaticamente. Os dados ficam em %LOCALAPPDATA%/MonicaRecompPrototype.
+Saves da 0.9 e da 0.10 continuam compatíveis (revisão 3). Dados e configurações ficam em %LOCALAPPDATA%/MonicaRecompPrototype. Não são gravados dentro da pasta do jogo.
 
-## Estado desta revisão
+## Requisitos estimados para 720p
 
-Os testes até o início da segunda fase e a exploração adicional passaram, mas o jogo não foi validado até o final. 16:9 preserva proporções com barras ou recorte; ainda não mostra cenário extra. O menu usa o slot 1. O carregamento reconstrói a sessão, não restaura um snapshot instantâneo. Windows 10 é o alvo, mas ainda falta validação em uma instalação limpa real.
+Windows 10 x64 22H2; CPU x86-64/SSE2 de dois núcleos em torno de 2 GHz; 2 GB de RAM (4 GB recomendados); vídeo integrado compatível; tela 1280×720; 250 MB livres. Não são mínimos certificados em computadores antigos.
 
-O núcleo smsggrecomp usado não declara licença. A publicação deste pacote não resolve essa pendência, nem concede direitos sobre o jogo, as marcas ou os materiais visuais. Consulte LICENSE_SCOPE.md e docs/DIREITOS.md. Não há binário derivado da ROM neste release.
+## Limitações conhecidas
 
-Confira os requisitos estimados em docs/REQUISITOS.md e a cobertura em docs/COBERTURA.md. Os hashes de integridade dos arquivos publicados estão em SHA256SUMS.txt nos assets do release.
+O jogo ainda não foi validado até o final. 16:9 usa barras ou recorte preservando proporções; ainda não mostra cenário extra. O menu usa o slot 1. O carregamento reconstrói a sessão e pode demorar em partidas longas. Windows 10 é o alvo, mas ainda falta validação em uma instalação limpa real.
+
+A publicação é um release normal/Latest no GitHub. Esse status não certifica ausência de bugs nem resolve as pendências de licenciamento documentadas. O executável contém traduções nativas geradas durante o build e componentes do núcleo smsggrecomp, cuja revisão não declara licença. Exigir ROM própria não elimina os direitos sobre o jogo. Consulte LICENSE_SCOPE.md, THIRD_PARTY.md e docs/DIREITOS.md. Os materiais visuais continuam sujeitos aos direitos dos titulares.
+
+O pacote não é assinado digitalmente. Consulte os hashes SHA-256 publicados para conferir a integridade do download. Código e instruções de build permanecem no repositório.

@@ -29,7 +29,7 @@ Além da ROM e da conexão para obter as dependências:
 - O build atual usa o gerador “MinGW Makefiles”; instalar somente o compilador MSVC não satisfaz esse script.
 - A primeira preparação baixa fontes das dependências e pode demorar vários minutos. O tempo depende de rede, CPU e disco.
 
-Esses requisitos de compilação são distintos dos requisitos para jogar. O release público desta revisão é um pacote de código com scripts, **sem executável pronto**.
+Esses requisitos de compilação são distintos dos requisitos para jogar. O ZIP Windows x64 da página Releases já inclui o executável e a SDL3; essas ferramentas adicionais só são necessárias para quem optar por compilar.
 
 ## Evidência disponível
 

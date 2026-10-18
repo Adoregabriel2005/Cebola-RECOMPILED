@@ -8,7 +8,7 @@ Um projeto de estudo de recompilação estática de um jogo de Master System par
 
 ## Download e requisitos
 
-O [release v0.10.0-preview.1](https://github.com/Adoregabriel2005/monica-no-castelo-do-dragao-recomp/releases/tag/v0.10.0-preview.1) é um **pré-release de código para geração local**, sem ROM ou executável pronto. Leia [como usar o pacote](LEIA-ME-RELEASE.md) e [as pendências para uma versão estável](docs/RELEASE.md).
+Baixe o [release Windows x64 portátil](https://github.com/Adoregabriel2005/monica-no-castelo-do-dragao-recomp/releases/latest), extraia o ZIP inteiro e abra **MonicaRecomp.exe**. Selecione sua ROM compatível no menu para habilitar Jogar. **Não é necessário compilar.** A ROM não acompanha o download. Leia [como usar](LEIA-ME-RELEASE.md) e [as limitações conhecidas](docs/RELEASE.md).
 
 **Mínimo estimado para jogar em 720p:** Windows 10 x64 22H2, CPU x86-64 de dois núcleos em torno de 2 GHz, 2 GB de RAM, vídeo integrado compatível, tela 1280×720 e 250 MB livres. **Recomendado:** 4 GB de RAM ou mais e CPU Core i3/Ryzen 3 ou equivalente. São estimativas, não requisitos certificados. Compilar exige ferramentas e mais memória/disco; veja [requisitos completos e evidências](docs/REQUISITOS.md).
 
@@ -111,7 +111,7 @@ O script prepara versões fixas das dependências, aplica os patches, gera o C a
 
 ROM suportada: 262144 bytes; CRC32 `01D67C0B`; SHA256 `484FDF3CB85C1BFD1CA938CFD59FD582A06EE20F9F3686BB3DFD1F7A70193086`.
 
-O repositório contém o frontend, os patches e os perfis de endereços. **Não contém ROM, C gerado, runtime copiado da base ou executáveis derivados do jogo.** Dependências são obtidas de seus próprios repositórios durante a preparação.
+Os arquivos versionados contêm o frontend, os patches e os perfis de endereços, sem ROM, C gerado ou runtime completo. O executável pronto e a SDL3 são distribuídos separadamente no ZIP da página Releases; a ROM continua sendo fornecida pelo usuário. Dependências de compilação são obtidas de suas próprias origens.
 
 ## Uso
 
@@ -143,4 +143,4 @@ Veja [validação](docs/VALIDATION.md), [arquitetura e pendências](docs/ROADMAP
 
 Projeto de fã e de aprendizado, sem vínculo oficial com Tec Toy/Tectoy, Sega, Westone ou Mauricio de Sousa Produções. Jogos, personagens, capas, anúncios e screenshots pertencem aos respectivos titulares. Exigir uma ROM não cria isenção automática de direitos autorais.
 
-A base smsggrecomp declara licença ainda não definida. Este repositório não inclui uma cópia dessa base nem a relicencia. O build local também não é um pacote binário público. Consulte [THIRD_PARTY.md](THIRD_PARTY.md) antes de redistribuir componentes.
+A base smsggrecomp declara licença ainda não definida. Este repositório não inclui uma cópia dessa base nem a relicencia. O release portátil inclui componentes dessa base; a publicação não resolve a ausência de licença declarada. Consulte [THIRD_PARTY.md](THIRD_PARTY.md) antes de redistribuir componentes.
