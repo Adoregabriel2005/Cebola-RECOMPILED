@@ -21,3 +21,5 @@ runtime/
 *.tmp
 
 coverage-last-route.txt
+
+release-dist/

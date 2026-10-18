@@ -6,6 +6,12 @@ Um projeto de estudo de recompilação estática de um jogo de Master System par
 
 **A ROM não acompanha o projeto.** O programa pede uma cópia compatível e só habilita **Jogar** depois de validá-la. O build é experimental; o jogo inteiro ainda não foi validado.
 
+## Download e requisitos
+
+O [release v0.10.0-preview.1](https://github.com/Adoregabriel2005/monica-no-castelo-do-dragao-recomp/releases/tag/v0.10.0-preview.1) é um **pré-release de código para geração local**, sem ROM ou executável pronto. Leia [como usar o pacote](LEIA-ME-RELEASE.md) e [as pendências para uma versão estável](docs/RELEASE.md).
+
+**Mínimo estimado para jogar em 720p:** Windows 10 x64 22H2, CPU x86-64 de dois núcleos em torno de 2 GHz, 2 GB de RAM, vídeo integrado compatível, tela 1280×720 e 250 MB livres. **Recomendado:** 4 GB de RAM ou mais e CPU Core i3/Ryzen 3 ou equivalente. São estimativas, não requisitos certificados. Compilar exige ferramentas e mais memória/disco; veja [requisitos completos e evidências](docs/REQUISITOS.md).
+
 ![Menu](docs/images/menu.png)
 
 ## Revisão 0.10: cobertura ampliada e acervo histórico
@@ -86,7 +92,7 @@ As imagens do jogo foram geradas pela execução nativa da ROM local. As telas d
 - Proporções de saída **4:3, 5:4 e 16:9**, com preservação da imagem, escala inteira ou preenchimento por recorte, sem esticar.
 - Resoluções de janela de 960 a 3840 pixels de largura, janela/tela cheia sem bordas, filtro nítido/suave, scanlines e brilho.
 - Dispositivo de áudio, volume do aplicativo, silêncio, 44,1/48/96 kHz, estéreo/mono e latência.
-- Três slots de salvamento por reconstrução determinística, com verificação do estado e rejeição de arquivo corrompido.
+- Salvamento no slot ativo 1 por reconstrução determinística, com verificação do estado e rejeição de arquivo corrompido.
 
 **16:9 não aumenta ainda a área real do cenário.** Preservar proporções usa barras quando necessário; preencher recorta bordas. Uma câmera panorâmica com cenário adicional está no [roteiro de desenvolvimento](docs/ROADMAP.md).
 
@@ -129,7 +135,7 @@ A ferramenta decodifica endereços Z80 coletados em roteiros de referência e ge
 
 O aplicativo usa esse backend AOT e interrompe a sessão se alcançar uma instrução ainda não coberta; não troca silenciosamente para interpretação. Vídeo, áudio, memória e portas do console são modelados pelo runtime. O intérprete permanece apenas nas ferramentas de referência/diagnóstico.
 
-O save atual grava os controles por quadro e reconstrói a sessão em velocidade acelerada ao carregar. A retomada confere um digest do estado. **Ainda não é snapshot instantâneo**, e o carregamento demora mais em sessões longas. O formato atual é versão 2.
+O save atual grava os controles por quadro e reconstrói a sessão em velocidade acelerada ao carregar. A retomada confere um digest do estado. **Ainda não é snapshot instantâneo**, e o carregamento demora mais em sessões longas. O formato atual usa revisão 3.
 
 Veja [validação](docs/VALIDATION.md), [arquitetura e pendências](docs/ROADMAP.md) e [dependências/créditos](THIRD_PARTY.md).
 
