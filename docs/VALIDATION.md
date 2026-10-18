@@ -1,4 +1,4 @@
-# Validação da versão 0.4.2
+# Validação da versão 0.5
 
 ## Testes automatizados aprovados
 
@@ -24,3 +24,7 @@ O teste com joysticks virtuais não comprova todos os controles físicos. Foi ob
 O intérprete superzazu e o AOT compartilham barramento, VDP e PSG. A comparação verifica diferenças da execução da CPU no roteiro; ela não comprova exatidão do runtime em relação ao console. Ainda faltam comparação com emulador independente/hardware e validação do jogo completo, do Windows 10 real e de mais controles físicos.
 
 A interface oferece enquadramento sem esticar, mas não câmera panorâmica com novos mapas visíveis. Não há snapshot instantâneo ou suporte FM implementado nesta versão.
+
+## Seletores integrados
+
+O componente próprio foi testado para mudança por teclado, passagem entre o primeiro e o último valor, leitura Unicode, limpeza de opções e ausência do estilo de janela popup. As seis páginas foram renderizadas pelo próprio aplicativo; Controles também foi conferida em 1024×640. Os testes de navegação e salvamento foram repetidos na revisão 0.5.

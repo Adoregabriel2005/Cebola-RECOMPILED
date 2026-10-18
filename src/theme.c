@@ -71,7 +71,7 @@ void theme_render(HDC dc,int w,int h,int paused,const uint32_t *fb,int ready,int
     }else word(canvas,75,78,620,110,L"MÔNICA",title,cream,DT_LEFT|DT_SINGLELINE);
     word(canvas,80,64,500,26,L"RECOMPILADO  •  PROJETO DE ESTUDO",small,gold,DT_LEFT|DT_SINGLELINE);
     word(canvas,82,224,470,32,paused?L"Um respiro antes da próxima aventura.":L"O castelo espera por você.",label,RGB(193,214,189),DT_LEFT|DT_SINGLELINE);
-    word(canvas,991,35,250,24,L"PROJETO DE ESTUDO  /  0.4.2",small,RGB(252,245,213),DT_RIGHT|DT_SINGLELINE);
+    word(canvas,991,35,250,24,L"PROJETO DE ESTUDO  /  0.5",small,RGB(252,245,213),DT_RIGHT|DT_SINGLELINE);
     if(paused && fb){
         RECT border={sx(797),sy(333),sx(1211),sy(649)};fill(canvas,border,RGB(239,198,106));
         BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=256;info.bmiHeader.biHeight=-192;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;

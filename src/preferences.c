@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define COBJMACROS
 #include "preferences.h"
+#include "choice.h"
 #include <commctrl.h>
 #include <commdlg.h>
 #include <mmsystem.h>
@@ -19,7 +20,8 @@ static Preferences pending,original,*target;
 static InputDevice devices[32];static int device_count,item_count,current_tab,capture_key=-1,capture_pad=-1,release_pad;
 static HBRUSH paper;static HFONT normal,heading,caption,widget_font;static wchar_t asset_directory[32768];
 typedef struct{uint32_t *pixels;UINT w,h;BITMAPINFO info;} Picture;
-static Picture cover,advert;
+static Picture cover,advert,forest;
+static wchar_t feedback[200];
 static const wchar_t *actions[]={L"Cima",L"Baixo",L"Esquerda",L"Direita",L"Botão 1",L"Botão 2"};
 static const wchar_t *pad_actions[]={L"Botão 1",L"Botão 2",L"Pausa",L"Voltar no menu",L"Cima",L"Baixo",L"Esquerda",L"Direita"};
 static int clamp(int v,int low,int high){return v<low?low:v>high?high:v;}
@@ -74,14 +76,23 @@ RECT video_destination(int w,int h,int aspect,int scale,RECT *source){
 }
 typedef struct {int x,y,w,h,page;} Layout;
 static double ui_scale;static int ui_x,ui_y;
+static LRESULT CALLBACK hover_button(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR id,DWORD_PTR data){
+    (void)id;(void)data;
+    if(msg==WM_MOUSEMOVE){if(!GetPropW(hwnd,L"hover")){SetPropW(hwnd,L"hover",(HANDLE)1);InvalidateRect(hwnd,NULL,FALSE);}TRACKMOUSEEVENT t={sizeof t,TME_LEAVE,hwnd,0};TrackMouseEvent(&t);}
+    if(msg==WM_MOUSELEAVE){RemovePropW(hwnd,L"hover");InvalidateRect(hwnd,NULL,FALSE);}
+    if(msg==WM_ERASEBKGND)return 1;
+    if(msg==WM_NCDESTROY){RemovePropW(hwnd,L"hover");RemoveWindowSubclass(hwnd,hover_button,1);}
+    return DefSubclassProc(hwnd,msg,wp,lp);
+}
 static void position_child(HWND item){Layout *l=(Layout*)GetPropW(item,L"layout");if(!l)return;
     double t=(GetTickCount()-page_started)/220.0;if(t>1)t=1;int offset=l->page?(int)(22*(1-t)*(1-t)):0;
     SetWindowPos(item,NULL,ui_x+(int)((l->x+offset)*ui_scale),ui_y+(int)(l->y*ui_scale),(int)(l->w*ui_scale),(int)(l->h*ui_scale),SWP_NOZORDER|SWP_NOACTIVATE);
 }
 static HWND child(const wchar_t *type,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id,int page){
     if(!wcscmp(type,L"BUTTON"))style=(style&~15)|BS_OWNERDRAW;
-    if(!wcscmp(type,L"COMBOBOX"))style|=CBS_OWNERDRAWFIXED|CBS_HASSTRINGS;
+    if(!wcscmp(type,L"COMBOBOX")){type=L"MonicaChoice";style=WS_TABSTOP;}
     HWND item=CreateWindowW(type,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,dialog,(HMENU)(INT_PTR)id,GetModuleHandleW(NULL),NULL);
+    if(!wcscmp(type,L"BUTTON"))SetWindowSubclass(item,hover_button,1,0);
     Layout *l=malloc(sizeof *l);*l=(Layout){x,y,w,h,page};SetPropW(item,L"layout",l);SendMessageW(item,WM_SETFONT,(WPARAM)widget_font,FALSE);SetWindowTheme(item,L"",L"");position_child(item);return item;
 }
 static void discard(HWND item){free((void*)RemovePropW(item,L"layout"));DestroyWindow(item);}
@@ -94,7 +105,7 @@ void preferences_resize(void){if(!dialog)return;RECT r;GetClientRect(owner,&r);S
     for(HWND c=GetWindow(dialog,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT)){position_child(c);SendMessageW(c,WM_SETFONT,(WPARAM)widget_font,FALSE);}DeleteObject(previous);InvalidateRect(dialog,NULL,FALSE);
 }
 static void label(const wchar_t *s,int x,int y,int w){widget(L"STATIC",s,0,x,y,w,28,0);}
-static HWND combo(int x,int y,int w,int id){return widget(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_VSCROLL|WS_TABSTOP,x,y,w,220,id);}
+static HWND combo(int x,int y,int w,int id){return widget(L"COMBOBOX",L"",WS_TABSTOP,x,y,w,32,id);}
 static void option(HWND c,const wchar_t *s){SendMessageW(c,CB_ADDSTRING,0,(LPARAM)s);}
 static int selection(HWND c){return (int)SendMessageW(c,CB_GETCURSEL,0,0);}
 static void select_at(HWND c,int i){SendMessageW(c,CB_SETCURSEL,i,0);}
@@ -121,7 +132,7 @@ static void build_page(int page){
         label(L"BOTÕES DO CONTROLE SELECIONADO",600,304,390);
         int n=input_button_count();if(n<32)n=32;if(n>128)n=128;
         for(int i=0;i<8;i++){
-            label(pad_actions[i],600,342+i*32,135);pad_combos[i]=combo(738,337+i*32,170,200+i);wchar_t automatic[100],name[80];input_default_label(i,name,80);swprintf(automatic,100,L"Auto · %ls",name);option(pad_combos[i],automatic);
+            label(pad_actions[i],600,342+i*32,135);pad_combos[i]=combo(738,337+i*32,170,200+i);wchar_t name[80];input_default_label(i,name,80);option(pad_combos[i],name);
             for(int b=0;b<n;b++){wchar_t text[32];swprintf(text,32,L"Botão físico %d",b+1);option(pad_combos[i],text);}select_at(pad_combos[i],clamp(pending.buttons[i]+1,0,n));
             widget(L"BUTTON",L"Detectar",WS_TABSTOP,915,337+i*32,95,27,300+i);
         }
@@ -184,8 +195,8 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     if(msg==WM_CTLCOLORSTATIC||msg==WM_CTLCOLORBTN||msg==WM_CTLCOLORLISTBOX||msg==WM_CTLCOLOREDIT){SetTextColor((HDC)wp,RGB(249,236,200));SetBkColor((HDC)wp,RGB(12,31,26));return (LRESULT)paper;}
     if(msg==WM_MEASUREITEM){((MEASUREITEMSTRUCT*)lp)->itemHeight=28;return TRUE;}
     if(msg==WM_DRAWITEM){DRAWITEMSTRUCT *d=(DRAWITEMSTRUCT*)lp;RECT r={0,0,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top};HDC dc=CreateCompatibleDC(d->hDC);HBITMAP bitmap=CreateCompatibleBitmap(d->hDC,r.right,r.bottom);HGDIOBJ old=SelectObject(dc,bitmap);
-        int active=(d->itemState&(ODS_SELECTED|ODS_FOCUS))!=0;int tab=(int)d->CtlID-600;if(tab>=0&&tab<6)active=tab==current_tab;
-        HBRUSH brush=CreateSolidBrush(active?RGB(146,34,43):RGB(22,51,42));FillRect(dc,&r,brush);DeleteObject(brush);
+        int active=(d->itemState&(ODS_SELECTED|ODS_FOCUS))!=0;int hover=GetPropW(d->hwndItem,L"hover")!=NULL;int tab=(int)d->CtlID-600;if(tab>=0&&tab<6)active=tab==current_tab;
+        HBRUSH brush=CreateSolidBrush(active?RGB(146,34,43):hover?RGB(37,67,49):RGB(22,51,42));FillRect(dc,&r,brush);DeleteObject(brush);
         HPEN pen=CreatePen(PS_SOLID,1,active?RGB(255,205,91):RGB(72,101,77));HGDIOBJ op=SelectObject(dc,pen),ob=SelectObject(dc,GetStockObject(NULL_BRUSH));RoundRect(dc,0,0,r.right-1,r.bottom-1,8,8);SelectObject(dc,op);SelectObject(dc,ob);DeleteObject(pen);
         wchar_t text[512]=L"";if(d->CtlType==ODT_COMBOBOX){if(d->itemID!=(UINT)-1)SendMessageW(d->hwndItem,CB_GETLBTEXT,d->itemID,(LPARAM)text);}else GetWindowTextW(d->hwndItem,text,512);
         if(d->CtlID==42)swprintf(text,512,pending.muted?L"[✓]  Áudio silenciado":L"[  ]  Silenciar áudio");
@@ -194,7 +205,9 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     }
     if(msg==WM_PAINT||msg==WM_PRINTCLIENT){PAINTSTRUCT ps;HDC screen=msg==WM_PAINT?BeginPaint(hwnd,&ps):(HDC)wp;RECT r;GetClientRect(hwnd,&r);HDC dc=CreateCompatibleDC(screen);HBITMAP bitmap=CreateCompatibleBitmap(screen,r.right,r.bottom);HGDIOBJ old=SelectObject(dc,bitmap);FillRect(dc,&r,paper);
         SetMapMode(dc,MM_ANISOTROPIC);SetWindowExtEx(dc,1060,700,NULL);SetViewportExtEx(dc,(int)(1060*ui_scale),(int)(700*ui_scale),NULL);SetViewportOrgEx(dc,ui_x,ui_y,NULL);
+        picture_draw(dc,&forest,0,0,1060,700);
         rounded(dc,14,72,1032,554,RGB(12,31,26),RGB(74,100,72));
+        draw_text(dc,32,646,530,36,feedback[0]?feedback:L"← → ajustar   ·   Tab navegar   ·   Esc voltar",caption,RGB(190,211,165));
         double t=(GetTickCount()-page_started)/220.0;if(t>1)t=1;SetViewportOrgEx(dc,ui_x+(int)(22*(1-t)*(1-t)*ui_scale),ui_y,NULL);
         if(current_tab==0)draw_pad(dc);
         if(current_tab==3){
@@ -241,7 +254,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
             else if(pressed&(INPUT_UP|INPUT_DOWN))SetFocus(GetNextDlgTabItem(hwnd,focus,!!(pressed&INPUT_UP)));
             else if(focus && (pressed&(INPUT_LEFT|INPUT_RIGHT|INPUT_A))){
                 wchar_t type[32];GetClassNameW(focus,type,32);
-                if(!wcscmp(type,L"ComboBox")){int count=(int)SendMessageW(focus,CB_GETCOUNT,0,0);int value=selection(focus);if(count>0){select_at(focus,(value+(pressed&INPUT_LEFT?count-1:1))%count);SendMessageW(hwnd,WM_COMMAND,MAKEWPARAM(GetDlgCtrlID(focus),CBN_SELCHANGE),(LPARAM)focus);InvalidateRect(focus,NULL,FALSE);}}
+                if(!wcscmp(type,L"MonicaChoice")){int count=(int)SendMessageW(focus,CB_GETCOUNT,0,0);int value=selection(focus);if(count>0){select_at(focus,(value+(pressed&INPUT_LEFT?count-1:1))%count);SendMessageW(hwnd,WM_COMMAND,MAKEWPARAM(GetDlgCtrlID(focus),CBN_SELCHANGE),(LPARAM)focus);InvalidateRect(focus,NULL,FALSE);}}
                 else if(pressed&INPUT_A)SendMessageW(focus,BM_CLICK,0,0);
             }
         }
@@ -264,11 +277,11 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         if(id==51)ShellExecuteW(hwnd,L"open",L"https://www.smspower.org/Games/MonicaNoCasteloDoDragao-SMS",NULL,NULL,SW_SHOWNORMAL);
     }
     if(msg==WM_CLOSE){input_select(original.device);input_configure(original.buttons);input_set_deadzone(original.deadzone);closing=1;screen_started=GetTickCount();return 0;}
-    if(msg==WM_DESTROY){for(HWND c=GetWindow(hwnd,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT))free((void*)RemovePropW(c,L"layout"));KillTimer(hwnd,1);dialog=NULL;SendMessageW(owner,PREFS_CLOSED,0,0);InvalidateRect(owner,NULL,FALSE);DeleteObject(widget_font);widget_font=NULL;DeleteObject(normal);DeleteObject(heading);DeleteObject(caption);DeleteObject(paper);free(cover.pixels);free(advert.pixels);memset(&cover,0,sizeof cover);memset(&advert,0,sizeof advert);return 0;}
+    if(msg==WM_DESTROY){for(HWND c=GetWindow(hwnd,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT))free((void*)RemovePropW(c,L"layout"));KillTimer(hwnd,1);dialog=NULL;SendMessageW(owner,PREFS_CLOSED,0,0);InvalidateRect(owner,NULL,FALSE);DeleteObject(widget_font);widget_font=NULL;DeleteObject(normal);DeleteObject(heading);DeleteObject(caption);DeleteObject(paper);free(cover.pixels);free(advert.pixels);free(forest.pixels);memset(&forest,0,sizeof forest);memset(&cover,0,sizeof cover);memset(&advert,0,sizeof advert);return 0;}
     return DefWindowProcW(hwnd,msg,wp,lp);
 }
 void preferences_open(HWND parent,Preferences *p,int tab,const wchar_t *assets){
-    if(dialog){SetFocus(nav[current_tab]);return;}owner=parent;target=p;pending=original=*p;wcsncpy(asset_directory,assets,32767);
+    if(dialog){SetFocus(nav[current_tab]);return;}choice_register(GetModuleHandleW(NULL));feedback[0]=0;owner=parent;target=p;pending=original=*p;wcsncpy(asset_directory,assets,32767);
     paper=CreateSolidBrush(RGB(12,31,26));normal=CreateFontW(-18,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");heading=CreateFontW(-29,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");caption=CreateFontW(-16,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
     WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=GetModuleHandleW(NULL);wc.lpszClassName=L"MonicaPreferences";wc.hbrBackground=paper;wc.hCursor=LoadCursor(NULL,IDC_ARROW);UnregisterClassW(wc.lpszClassName,wc.hInstance);RegisterClassW(&wc);
     RECT r;GetClientRect(parent,&r);dialog=CreateWindowExW(WS_EX_CONTROLPARENT,L"MonicaPreferences",L"Configurações da aventura",WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,0,0,r.right,r.bottom,parent,NULL,wc.hInstance,NULL);
@@ -276,16 +289,16 @@ void preferences_open(HWND parent,Preferences *p,int tab,const wchar_t *assets){
     preferences_resize();closing=0;
     wchar_t *names[]={L"Controles",L"Vídeo",L"Áudio",L"O jogo",L"Projeto",L"Créditos"};
     for(int i=0;i<6;i++)nav[i]=child(L"BUTTON",names[i],WS_TABSTOP,32+i*166,22,156,40,600+i,0);
-    child(L"BUTTON",L"Aplicar e voltar",WS_TABSTOP,760,642,260,40,1,0);child(L"BUTTON",L"Voltar",WS_TABSTOP,600,642,145,40,2,0);
-    picture_load(&cover,L"period-box.png");picture_load(&advert,L"period-advert.png");screen_started=GetTickCount();build_page(tab);ShowWindow(dialog,SW_SHOW);SetFocus(nav[tab]);SetTimer(dialog,1,16,NULL);
+    child(L"BUTTON",L"Concluir",WS_TABSTOP,818,642,202,40,1,0);child(L"BUTTON",L"Descartar",WS_TABSTOP,650,642,154,40,2,0);
+    picture_load(&cover,L"period-box.png");picture_load(&advert,L"period-advert.png");picture_load(&forest,L"menu-forest.png");if(forest.pixels)for(size_t i=0;i<(size_t)forest.w*forest.h;i++){uint32_t c=forest.pixels[i];forest.pixels[i]=(((c>>16)&255)*18/100<<16)|(((c>>8)&255)*18/100<<8)|((c&255)*18/100);}screen_started=GetTickCount();build_page(tab);ShowWindow(dialog,SW_SHOW);SetFocus(nav[tab]);SetTimer(dialog,1,16,NULL);
 
 }
 int preferences_route(MSG *msg){
     if(!dialog)return 0;
     if(capture_key>=0 && msg->message==WM_KEYDOWN){
         int key=(int)msg->wParam;if(key!=VK_ESCAPE){int used=0;for(int i=0;i<6;i++)if(i!=capture_key&&pending.keys[i]==key)used=1;
-            if(used || key==VK_F2||key==VK_F5||key==VK_F9||key==VK_F11){MessageBoxW(dialog,L"Essa tecla já está em uso ou é um atalho do aplicativo.",L"Mapeamento",MB_OK);return 1;}pending.keys[capture_key]=key;}
-        wchar_t name[80];key_name(pending.keys[capture_key],name);SetWindowTextW(key_buttons[capture_key],name);capture_key=-1;return 1;
+            if(used || key==VK_F2||key==VK_F5||key==VK_F9||key==VK_F11){wcscpy(feedback,L"Tecla em uso. Escolha outra para continuar.");InvalidateRect(dialog,NULL,FALSE);return 1;}pending.keys[capture_key]=key;}
+        wchar_t name[80];key_name(pending.keys[capture_key],name);SetWindowTextW(key_buttons[capture_key],name);capture_key=-1;feedback[0]=0;InvalidateRect(dialog,NULL,FALSE);return 1;
     }
     if(msg->message==WM_KEYDOWN && msg->wParam==VK_ESCAPE){SendMessageW(dialog,WM_COMMAND,2,0);return 1;}
     if(msg->message==WM_KEYDOWN && (msg->wParam==VK_LEFT||msg->wParam==VK_RIGHT)){

@@ -45,11 +45,19 @@ static HWAVEOUT audio_device;
 static WAVEHDR audio_headers[8];
 static int16_t audio_buffers[8][4096];
 static int audio_index;
+static wchar_t notification[600];
+static ULONGLONG notification_until;
 static uint64_t audio_phase;
 static int64_t audio_sum[2];
 static unsigned audio_samples;
 
-static void message(const wchar_t *text){ MessageBoxW(window,text,L"Mônica Recomp — protótipo",MB_OK|MB_ICONINFORMATION); }
+static void message(const wchar_t *text){wcsncpy(notification,text,599);notification[599]=0;notification_until=GetTickCount64()+9000;InvalidateRect(window,NULL,FALSE);}
+static void draw_notification(HDC dc,int w,int h){
+    if(!notification[0] || GetTickCount64()>=notification_until)return;
+    RECT r={(!running||paused)?w*45/100:32,h-146,w-32,h-42};HBRUSH brush=CreateSolidBrush(RGB(12,31,26));HPEN pen=CreatePen(PS_SOLID,1,RGB(255,205,91));HGDIOBJ ob=SelectObject(dc,brush),op=SelectObject(dc,pen);
+    RoundRect(dc,r.left,r.top,r.right,r.bottom,14,14);SelectObject(dc,ob);SelectObject(dc,op);DeleteObject(brush);DeleteObject(pen);
+    HFONT old=SelectObject(dc,font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(255,242,208));InflateRect(&r,-18,-12);DrawTextW(dc,notification,-1,&r,DT_LEFT|DT_WORDBREAK|DT_END_ELLIPSIS);SelectObject(dc,old);
+}
 static void save_settings(void){
     WritePrivateProfileStringW(L"app",L"rom",rom_path,ini);
     cfg.fullscreen=full_screen;preferences_save(&cfg,ini);
@@ -110,7 +118,7 @@ static uint8_t input_mask(void){
 }
 static void paint(HDC dc,RECT client){
     int w=client.right,h=client.bottom;
-    if(!running || paused){theme_render(dc,w,h,paused,framebuffer,rom_ready,slot);return;}
+    if(!running || paused){theme_render(dc,w,h,paused,framebuffer,rom_ready,slot);draw_notification(dc,w,h);return;}
     FillRect(dc,&client,background);
     RECT source,dest=video_destination(w,h,cfg.aspect,cfg.scale,&source);
     if(dest.right<=dest.left||dest.bottom<=dest.top)return;
@@ -124,6 +132,7 @@ static void paint(HDC dc,RECT client){
     BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=256;info.bmiHeader.biHeight=-192;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
     SetStretchBltMode(dc,cfg.filter?HALFTONE:COLORONCOLOR);
     StretchDIBits(dc,dest.left,dest.top,dest.right-dest.left,dest.bottom-dest.top,source.left,source.top,source.right-source.left,source.bottom-source.top,display,&info,DIB_RGB_COLORS,SRCCOPY);
+    draw_notification(dc,w,h);
 }
 static int validate_rom(const wchar_t *path){
     FILE *f=_wfopen(path,L"rb");if(!f)return 0;uint8_t *data=malloc(MONICA_ROM_SIZE);if(!data){fclose(f);return 0;}
