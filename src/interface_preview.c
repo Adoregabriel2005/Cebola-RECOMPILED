@@ -13,6 +13,7 @@ int wmain(int argc,wchar_t **argv){
     RECT r={0,0,w,h};AdjustWindowRect(&r,WS_OVERLAPPEDWINDOW,FALSE);SetWindowPos(owner,NULL,0,0,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);
     Preferences p;preferences_defaults(&p);preferences_open(owner,&p,_wtoi(argv[2]),argv[1]);Sleep(260);preferences_resize();
     HWND page=FindWindowExW(owner,NULL,L"MonicaPreferences",NULL);if(!page)return 3;
+    if(argc>6&&_wtoi(argv[2])==3){HWND chapter=GetDlgItem(page,54);SendMessageW(chapter,CB_SETCURSEL,_wtoi(argv[6]),0);SendMessageW(page,WM_COMMAND,MAKEWPARAM(54,CBN_SELCHANGE),(LPARAM)chapter);Sleep(260);preferences_resize();}
     HDC dc=CreateCompatibleDC(NULL);BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
     uint32_t *pixels;HBITMAP bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,(void**)&pixels,NULL,0);HGDIOBJ old=SelectObject(dc,bitmap);
     SendMessageW(page,WM_PRINT,(WPARAM)dc,PRF_CLIENT|PRF_CHILDREN|PRF_ERASEBKGND);

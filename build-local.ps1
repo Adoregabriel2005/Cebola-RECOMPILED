@@ -14,7 +14,7 @@ $engine=Join-Path $work 'deps/smsggrecomp'
 $sdlBuild=Join-Path $work 'deps/sdl-build'
 $toolBuild=Join-Path $work 'recompiler-build'
 $appBuild=Join-Path $work 'app-build'
-$destination=Join-Path $PSScriptRoot 'local-bin/v0.9'
+$destination=Join-Path $PSScriptRoot 'local-bin/v0.10'
 & cmake -S (Join-Path $engine 'recompiler') -B $toolBuild -G 'MinGW Makefiles' -DCMAKE_BUILD_TYPE=Release
 if($LASTEXITCODE){throw 'Falha na configuração do recompilador.'}
 & cmake --build $toolBuild -j 4
@@ -24,7 +24,7 @@ if($LASTEXITCODE){throw 'Falha na tradução por funções para as ferramentas d
 $reach=Join-Path $toolBuild 'aot-reachability.exe'
 & clang -O2 -municode "-I$engine/recompiler/src" (Join-Path $PSScriptRoot 'tools/aot_reachability.c') (Join-Path $engine 'recompiler/src/z80_decoder.c') -o $reach
 if($LASTEXITCODE){throw 'Falha na ferramenta de alcance estático.'}
-& $reach $rom (Join-Path $PSScriptRoot 'instruction-seeds.txt') (Join-Path $PSScriptRoot 'instruction-trace.txt')
+& $reach $rom (Join-Path $PSScriptRoot 'instruction-seeds.txt') (Join-Path $PSScriptRoot 'instruction-trace.txt') --all-page2-banks --all-observed-entrypoints
 if($LASTEXITCODE){throw 'Falha na análise dos caminhos AOT.'}
 & (Join-Path $toolBuild 'SmsRecomp.exe') $rom --game (Join-Path $PSScriptRoot 'game.toml') --bank-step-trace (Join-Path $PSScriptRoot 'instruction-trace.txt')
 if($LASTEXITCODE){throw 'Falha na geração AOT por instrução.'}
@@ -33,7 +33,7 @@ if($LASTEXITCODE){throw 'Falha na configuração do aplicativo.'}
 & cmake --build $appBuild -j 4
 if($LASTEXITCODE){throw 'Falha na compilação. Feche a mesma versão do aplicativo se estiver em uso.'}
 Copy-Item -LiteralPath (Join-Path $work 'deps/SDL3/LICENSE.txt') -Destination (Join-Path $destination 'LICENSE-SDL.txt') -Force
-Write-Host "Protótipo local: $(Join-Path $destination 'MonicaRecomp-v0.9.exe')"
+Write-Host "Protótipo local: $(Join-Path $destination 'MonicaRecomp-v0.10.exe')"
 Write-Host 'O código gerado e os executáveis são locais. Não os publique com a ROM.'
 
 } finally { Pop-Location }

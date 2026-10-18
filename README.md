@@ -8,6 +8,20 @@ Um projeto de estudo de recompilação estática de um jogo de Master System par
 
 ![Menu](docs/images/menu.png)
 
+## Revisão 0.10: cobertura ampliada e acervo histórico
+
+A tradução estática agora considera todos os offsets de entrada das combinações banco/janela observadas, além de seguir ramos diretos para todos os bancos selecionáveis na página 2 do mapper Sega. A base de 7.562 endereços observados produz **200.067 candidatos AOT**, incluindo offsets que podem ser dados. Esse total **não é uma porcentagem de código real nem comprovação de jogo completo**. Destinos em RAM, outros mapeamentos, limites entre bancos e diferenças de implementação ainda precisam de validação. O runtime continua conferindo os bytes e não usa interpretador como fallback.
+
+Foram mantidos os roteiros até o primeiro chefe e a segunda fase, acrescentando abertura sem atalhos e uma exploração de 18.500 quadros. Falhas de cobertura passam a gerar localmente `coverage-last-route.txt`, com entradas comprimidas por intervalos, além de `runtime.log`; o arquivo permite reproduzir a sequência sem conter ROM ou dumps de memória. Não há envio automático.
+
+**O jogo** agora tem sete capítulos dentro da interface, navegáveis por teclado, mouse ou controle: aventura; parceria Tec Toy/MSP; produção; diferenças de Wonder Boy; publicidade; vendas e legado; fontes. Os links indicam documentos e depoimentos consultados. Não foi localizada uma cifra verificável de vendas do cartucho e nenhuma estimativa foi inventada. Veja [a pesquisa e seus limites](docs/HISTORIA.md).
+
+![História da parceria](docs/images/historia-parceria.png)
+
+![Diferenças entre as versões](docs/images/historia-diferencas.png)
+
+Saves da versão 0.9 continuam compatíveis (revisão 3). As limitações de compatibilidade com builds anteriores permanecem descritas abaixo.
+
 ## Revisão 0.9: primeira porta e avanço de fase
 
 Corrigidos o trecho ausente na primeira porta (0x1950) e a abertura sem pular a introdução (0x1631). O controle de I/O do console agora responde à detecção de região da ROM brasileira, mantendo os diálogos em português. O perfil contém 7.115 endereços observados e 9.670 candidatos após seguir ramos diretos; isso não comprova todos os destinos indiretos ou todo o jogo.
@@ -87,7 +101,7 @@ Requer Windows x64, PowerShell, Git, CMake e Clang/MinGW com `mingw32-make` no P
 ./test-local.ps1 -RomPath 'C:/caminho/Monica no Castelo do Dragao (Brazil).sms'
 ```
 
-O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.9/MonicaRecomp-v0.9.exe**; mantenha `SDL3.dll` e `assets` junto dele.
+O script prepara versões fixas das dependências, aplica os patches, gera o C a partir da ROM e compila localmente. A primeira preparação pode demorar vários minutos. O executável fica em **local-bin/v0.10/MonicaRecomp-v0.10.exe**; mantenha `SDL3.dll` e `assets` junto dele.
 
 ROM suportada: 262144 bytes; CRC32 `01D67C0B`; SHA256 `484FDF3CB85C1BFD1CA938CFD59FD582A06EE20F9F3686BB3DFD1F7A70193086`.
 

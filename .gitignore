@@ -19,3 +19,5 @@ build/
 runtime/
 *.log
 *.tmp
+
+coverage-last-route.txt

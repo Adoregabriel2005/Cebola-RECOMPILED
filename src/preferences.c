@@ -2,6 +2,8 @@
 #define COBJMACROS
 #include "preferences.h"
 #include "choice.h"
+#include "history.h"
+static int history_page;static HWND history_choice;
 #include <commctrl.h>
 #include <commdlg.h>
 #include <mmsystem.h>
@@ -159,7 +161,14 @@ static void build_page(int page){
         option(audio_controls[5],L"Baixa");option(audio_controls[5],L"Equilibrada");option(audio_controls[5],L"Mais estável");select_at(audio_controls[5],pending.latency);
         label(L"O áudio original deste jogo usa o PSG do Master System. A seleção não muda a velocidade do jogo.",32,535,940);
     }else if(page==3){
-        widget(L"BUTTON",L"Ver fonte histórica",WS_TABSTOP,32,557,220,36,50);widget(L"BUTTON",L"Acervo SMS Power!",WS_TABSTOP,264,557,220,36,51);
+        history_choice=combo(32,172,610,54);
+        for(int i=0;i<HISTORY_COUNT;i++)option(history_choice,history_chapters[i].name);
+        select_at(history_choice,history_page);
+        const HistoryChapter *c=&history_chapters[history_page];
+        widget(L"BUTTON",c->source_label,WS_TABSTOP,32,567,238,36,50);
+        widget(L"BUTTON",c->other_label,WS_TABSTOP,280,567,238,36,51);
+        widget(L"BUTTON",L"‹",WS_TABSTOP,534,567,48,36,52);
+        widget(L"BUTTON",L"›",WS_TABSTOP,594,567,48,36,53);
     }
     for(int i=0;i<6;i++)InvalidateRect(nav[i],NULL,FALSE);
     InvalidateRect(dialog,NULL,FALSE);
@@ -211,17 +220,20 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         double t=(GetTickCount()-page_started)/220.0;if(t>1)t=1;SetViewportOrgEx(dc,ui_x+(int)(22*(1-t)*(1-t)*ui_scale),ui_y,NULL);
         if(current_tab==0)draw_pad(dc);
         if(current_tab==3){
-            draw_text(dc,32,90,620,40,L"Mônica no Castelo do Dragão",heading,RGB(255,210,103));
-            draw_text(dc,32,142,610,30,L"1991  •  Master System  •  Brasil",caption,RGB(180,217,159));
-            draw_text(dc,32,192,610,130,L"Publicado pela Tec Toy no Brasil, o cartucho adapta Wonder Boy in Monster Land, da Westone/Sega, ao universo de Maurício de Sousa. Mônica protagoniza a aventura com textos em português e personagens da Turma da Mônica.",normal,RGB(245,236,212));
-            draw_text(dc,32,321,610,120,L"Plataformas, combates, lojas e equipamentos fazem parte da jornada contra os monstros e os planos do Capitão Feio. As artes ao lado são materiais de época fornecidos para contextualizar o lançamento brasileiro.",normal,RGB(245,236,212));
-            draw_text(dc,32,437,610,103,L"Este projeto preserva o reconhecimento a quem criou o jogo original. Conheça a implementação em Projeto e os titulares e bibliotecas em Créditos.",normal,RGB(180,217,159));
-            picture_draw(dc,&cover,679,88,315,220);picture_draw(dc,&advert,720,324,250,280);
+            const HistoryChapter *c=&history_chapters[history_page];
+            draw_text(dc,32,90,650,40,L"Mônica no Castelo do Dragão",heading,RGB(255,210,103));
+            draw_text(dc,32,140,610,28,c->kicker,caption,RGB(180,217,159));
+            draw_text(dc,32,220,610,330,c->body,history_page==6?caption:normal,RGB(245,236,212));
+            wchar_t count[64];swprintf(count,64,L"ACERVO  ·  %02d / %02d",history_page+1,HISTORY_COUNT);
+            draw_text(dc,715,573,280,30,count,caption,RGB(180,217,159));
+            picture_draw(dc,&cover,686,90,308,218);
+            draw_text(dc,698,317,306,36,L"Capa brasileira · acervo de época",caption,RGB(180,217,159));
+            picture_draw(dc,&advert,731,360,222,200);
         }
         if(current_tab==4){
             draw_text(dc,40,96,960,42,L"Como este projeto foi feito",heading,RGB(255,210,103));
             draw_text(dc,40,157,950,75,L"Meu objetivo é aprender como fazer um recompilado: estudar o funcionamento do cartucho e construir uma experiência nativa para Windows, com código e documentação desenvolvidos com auxílio do Codex.",normal,RGB(245,236,212));
-            draw_text(dc,40,247,950,92,L"BASE TÉCNICA  •  smsggrecomp, de mstan. O backend AOT transforma instruções Z80 observadas em código C por banco, compilado para x64. A pilha e as interrupções do jogo continuam respeitando o comportamento do Master System.",normal,RGB(245,236,212));
+            draw_text(dc,40,247,950,92,L"BASE TÉCNICA  •  smsggrecomp, de mstan. O backend AOT transforma endereços Z80 observados e candidatos estáticos em código C por banco, compilado para x64. A pilha e as interrupções do jogo continuam respeitando o comportamento do Master System.",normal,RGB(245,236,212));
             draw_text(dc,40,354,950,80,L"RUNTIME  •  VDP e PSG da base reproduzem vídeo e áudio. SDL3 recebe controles modernos; Win32 desenha a interface e WinMM entrega o áudio. O núcleo Z80 superzazu é usado nas ferramentas de referência e comparação.",normal,RGB(245,236,212));
             draw_text(dc,40,451,950,80,L"SALVAMENTO  •  A sequência de entradas reconstrói a partida e um hash verifica o estado. Não é um snapshot instantâneo. O backend interrompe a execução se encontrar código ainda não coberto; o jogo completo está em validação.",normal,RGB(180,217,159));
             draw_text(dc,40,548,950,58,L"Arte de menu e ícone: ilustrações de fã geradas com ImageGen. Interface e código: projeto educacional assistido por IA. Sem vínculo com os produtores originais.",caption,RGB(180,217,159));
@@ -273,8 +285,11 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         if(id==10 && HIWORD(wp)==CBN_SELCHANGE){int i=selection(device_combo);snprintf(pending.device,sizeof pending.device,"%s",i>0&&i<=device_count?devices[i-1].key:"");input_select(pending.device);input_update();InvalidateRect(hwnd,NULL,FALSE);return 0;}
         if(id>=100&&id<107){capture_key=id-100;SetWindowTextW(key_buttons[capture_key],L"Pressione uma tecla…");return 0;}
         if(id>=300&&id<308){capture_pad=id-300;release_pad=0;SetWindowTextW(hwnd,L"Solte e pressione o botão desejado no controle");return 0;}
-        if(id==50)ShellExecuteW(hwnd,L"open",L"https://turmadamonica.fandom.com/pt-br/wiki/M%C3%B4nica_no_Castelo_do_Drag%C3%A3o",NULL,NULL,SW_SHOWNORMAL);
-        if(id==51)ShellExecuteW(hwnd,L"open",L"https://www.smspower.org/Games/MonicaNoCasteloDoDragao-SMS",NULL,NULL,SW_SHOWNORMAL);
+        if(current_tab==3&&id>=50&&id<=54){
+            if(id==50||id==51){const HistoryChapter *c=&history_chapters[history_page];ShellExecuteW(hwnd,L"open",id==50?c->source_url:c->other_url,NULL,NULL,SW_SHOWNORMAL);return 0;}
+            int next=id==54?selection(history_choice):(history_page+(id==52?HISTORY_COUNT-1:1))%HISTORY_COUNT;
+            if(next>=0&&next<HISTORY_COUNT&&next!=history_page){history_page=next;build_page(3);SetFocus(history_choice);}return 0;
+        }
     }
     if(msg==WM_CLOSE){input_select(original.device);input_configure(original.buttons);input_set_deadzone(original.deadzone);closing=1;screen_started=GetTickCount();return 0;}
     if(msg==WM_DESTROY){for(HWND c=GetWindow(hwnd,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT))free((void*)RemovePropW(c,L"layout"));KillTimer(hwnd,1);dialog=NULL;SendMessageW(owner,PREFS_CLOSED,0,0);InvalidateRect(owner,NULL,FALSE);DeleteObject(widget_font);widget_font=NULL;DeleteObject(normal);DeleteObject(heading);DeleteObject(caption);DeleteObject(paper);free(cover.pixels);free(advert.pixels);free(forest.pixels);memset(&forest,0,sizeof forest);memset(&cover,0,sizeof cover);memset(&advert,0,sizeof advert);return 0;}

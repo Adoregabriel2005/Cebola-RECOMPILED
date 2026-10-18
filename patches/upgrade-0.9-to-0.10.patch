@@ -1,0 +1,65 @@
+diff --git a/recompiler/src/code_generator.c b/recompiler/src/code_generator.c
+index af2f3d5..cc618bc 100644
+--- a/recompiler/src/code_generator.c
++++ b/recompiler/src/code_generator.c
+@@ -1198,7 +1198,7 @@ void cg_emit_flat_step(const SmsRom *rom, const GameConfig *cfg,
+ /* Profile-guided banked AOT backend. Trace entries are instruction addresses,
+  * not embedded ROM bytes; instruction decoding happens only while generating. */
+ void cg_emit_bank_trace(const SmsRom *rom,const GameConfig *cfg,const char *out_dir,const char *trace_path){
+-    CG_MKDIR(out_dir);
++    (void)cfg;CG_MKDIR(out_dir);
+     FILE *t=fopen(trace_path,"r");if(!t){perror(trace_path);exit(1);}
+     static unsigned char seen[16][0xC000];memset(seen,0,sizeof seen);
+     unsigned bank,pc,count=0;
+@@ -1217,16 +1217,28 @@ void cg_emit_bank_trace(const SmsRom *rom,const GameConfig *cfg,const char *out_
+     fprintf(d,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(d);
+     for(unsigned b=0;b<16;b++){
+         snprintf(path,sizeof path,"%s/monica_bank%02u.c",out_dir,b);FILE *o=fopen(path,"w");if(!o)exit(1);
+-        fprintf(o,"#include \"monica_step.h\"\nvoid monica_bank%02u(void){ Z80State *s=&g_z80;switch(s->pc){\n",b);
+-        for(unsigned a=0;a<0xC000;a++)if(seen[b][a]){
+-            size_t off=rom_z80_to_offset(rom,(uint16_t)a,(int)b);
+-            if(off==SIZE_MAX || off>=rom->size)continue;
+-            Z80Insn in;if(z80_decode(rom->data+off,rom->size-off,(uint16_t)a,&in)<=0 || in.illegal)continue;
+-            fprintf(o,"case 0x%04X: { /* %s */\n",a,in.text);
+-            emit_flat_match(o,&in,(uint16_t)a);
+-            fprintf(o,"sms_dispatch_miss(s->pc);return;}\n");count++;
++        fprintf(o,"#include \"monica_step.h\"\n#if defined(_MSC_VER)\n#define AOT_NOINLINE __declspec(noinline)\n#else\n#define AOT_NOINLINE __attribute__((noinline))\n#endif\n");
++        unsigned char chunks[48]={0};
++        /* Bound each native switch to 1 KiB of guest addresses. Very large
++           conservative switches otherwise make optimizer time grow sharply. */
++        for(unsigned chunk=0;chunk<48;chunk++){
++            unsigned first=chunk*0x400,last=first+0x400;
++            for(unsigned a=first;a<last;a++)if(seen[b][a]){chunks[chunk]=1;break;}
++            if(!chunks[chunk])continue;
++            fprintf(o,"static AOT_NOINLINE void bank%02u_chunk%02u(void){ Z80State *s=&g_z80;switch(s->pc){\n",b,chunk);
++            for(unsigned a=first;a<last;a++)if(seen[b][a]){
++                size_t off=rom_z80_to_offset(rom,(uint16_t)a,(int)b);
++                if(off==SIZE_MAX || off>=rom->size)continue;
++                Z80Insn in;if(z80_decode(rom->data+off,rom->size-off,(uint16_t)a,&in)<=0 || in.illegal)continue;
++                fprintf(o,"case 0x%04X: { /* %s */\n",a,in.text);
++                emit_flat_match(o,&in,(uint16_t)a);
++                fprintf(o,"sms_dispatch_miss(s->pc);return;}\n");count++;
++            }
++            fprintf(o,"default:sms_dispatch_miss(s->pc);return;} }\n");
+         }
+-        fprintf(o,"default:sms_dispatch_miss(s->pc);return;} }\n");fclose(o);
++        fprintf(o,"void monica_bank%02u(void){ switch(g_z80.pc >> 10){\n",b);
++        for(unsigned chunk=0;chunk<48;chunk++)if(chunks[chunk])fprintf(o,"case %u: bank%02u_chunk%02u();return;\n",chunk,b,chunk);
++        fprintf(o,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(o);
+     }
+     printf("[bank-aot] %u statically decoded instruction addresses emitted\n",count);
+ }
+diff --git a/recompiler/src/z80_decoder.c b/recompiler/src/z80_decoder.c
+index e4cb2c2..96c4ca5 100644
+--- a/recompiler/src/z80_decoder.c
++++ b/recompiler/src/z80_decoder.c
+@@ -219,7 +219,8 @@ int z80_decode(const uint8_t *p, size_t avail, uint16_t z80_pc, Z80Insn *out) {
+         if (disp) { out->disp = (int8_t)((opstart + 1 < avail) ? p[opstart + 1] : 0);
+                     out->uses_disp = true; }
+ 
+-        out->is_halt = (b == 0x76 && pfx == Z80_PFX_NONE);
++        /* DD/FD are ignored by HALT: it never addresses (IX/IY+d). */
++        out->is_halt = (b == 0x76);
+         out->length  = (uint8_t)(opstart + 1 + (disp ? 1 : 0) + (bl - 1));
+         /* bl already includes the opcode's own operand bytes (bl-1 of them). */
+ 

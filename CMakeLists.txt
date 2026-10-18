@@ -10,6 +10,11 @@ else()
   set(MONICA_RUNTIME "${ENGINE}/runner")
 endif()
 file(GLOB BANK_SOURCES CONFIGURE_DEPENDS generated/monica_bank*.c)
+# Large conservative switches compile much faster at O1. Keep the scheduler,
+# device runtime and UI at the normal Release optimization level.
+if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+  set_source_files_properties(${BANK_SOURCES} PROPERTIES COMPILE_OPTIONS "-O1")
+endif()
 add_library(monica-core STATIC ${MONICA_RUNTIME}/glue.c src/replay.c
   ${ENGINE}/runner/video/sms_vdp.c ${ENGINE}/runner/audio/sn76489.c
   ${ENGINE}/runner/external/superzazu/z80.c
@@ -21,10 +26,18 @@ if(NOT MSVC)
 endif()
 add_executable(monica-headless ${ENGINE}/runner/main.c)
 target_link_libraries(monica-headless PRIVATE monica-core)
+add_executable(monica-decoder-verify tests/decoder_halt.c ${ENGINE}/recompiler/src/z80_decoder.c ${ENGINE}/runner/external/superzazu/z80.c)
+target_include_directories(monica-decoder-verify PRIVATE ${ENGINE}/recompiler/src ${ENGINE}/runner/external/superzazu)
+# These assertions are the regression contract, including in Release builds.
+if(NOT MSVC)
+  target_compile_options(monica-decoder-verify PRIVATE -UNDEBUG)
+else()
+  target_compile_options(monica-decoder-verify PRIVATE /UNDEBUG)
+endif()
 add_executable(monica-verify src/verify.c)
 target_link_libraries(monica-verify PRIVATE monica-core)
 add_executable(MonicaRecomp WIN32 src/app.c src/theme.c src/input.c src/preferences.c src/choice.c src/app.rc)
-set_target_properties(MonicaRecomp PROPERTIES OUTPUT_NAME "MonicaRecomp-v0.9")
+set_target_properties(MonicaRecomp PROPERTIES OUTPUT_NAME "MonicaRecomp-v0.10")
 add_executable(monica-theme-preview src/theme_preview.c src/theme.c)
 target_include_directories(monica-theme-preview PRIVATE ${ENGINE}/runner)
 target_link_libraries(monica-theme-preview PRIVATE user32 gdi32 ole32 windowscodecs uuid m msimg32)

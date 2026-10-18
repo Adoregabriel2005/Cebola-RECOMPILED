@@ -185,6 +185,20 @@ static int choose_rom(void){
     if(!validate_rom(path)){message(L"ROM incompatível. Esta versão requer Mônica no Castelo do Dragão (Brazil), 256 KiB, CRC32 01D67C0B.");return 0;}
     wcscpy(rom_path,path);rom_ready=1;save_settings();navigation();InvalidateRect(window,NULL,TRUE);return 1;
 }
+/* Local input-only reproduction for an uncovered native path. No ROM or
+   machine-memory dump is included. The verifier accepts this RLE timeline. */
+static int save_coverage_route(void){
+    if(!movie.count)return 0;
+    wchar_t path[32768],temp[32768];swprintf(path,32768,L"%ls\\coverage-last-route.txt",root);swprintf(temp,32768,L"%ls.tmp",path);
+    FILE *fp=_wfopen(temp,L"w");if(!fp)return 0;
+    uint32_t first=0;
+    for(uint32_t i=1;i<=movie.count;i++)if(i==movie.count||movie.inputs[i]!=movie.inputs[first]){
+        if(fprintf(fp,"%u %u %u\n",first+1,i,movie.inputs[first])<0){fclose(fp);DeleteFileW(temp);return 0;}first=i;
+    }
+    if(fclose(fp)!=0){DeleteFileW(temp);return 0;}
+    if(!MoveFileExW(temp,path,MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)){DeleteFileW(temp);return 0;}
+    fprintf(stderr,"[coverage] input-only reproduction: %ls\n",path);return 1;
+}
 static void save_game(void){
     if(!running || movie.target){message(L"Inicie o jogo e aguarde a reconstrução terminar antes de salvar.");return;}
     wchar_t path[32768],note[160];slot_path(path);uint64_t hash=glue_state_hash();
@@ -331,7 +345,7 @@ static int restart_process(void){
     free(cmd);if(ok){CloseHandle(pi.hProcess);CloseHandle(pi.hThread);}return ok;
 }
 static void test_navigation(void){
-    int isolated=1,restored=1,embedded=1,pages=0;
+    int isolated=1,restored=1,embedded=1,pages=0,history_switches=0;
     for(int cycle=0;cycle<4;cycle++){
         running=cycle&1;paused=running;settings(cycle%4);
         HWND page=FindWindowExW(window,NULL,L"MonicaPreferences",NULL);
@@ -340,6 +354,7 @@ static void test_navigation(void){
         embedded &= !(GetWindowLongW(page,GWL_STYLE)&WS_CAPTION);
         for(int tab=0;tab<6;tab++){
             SendMessageW(page,WM_COMMAND,600+tab,0);pages++;
+            if(tab==3){for(int h=0;h<7;h++){SendMessageW(page,WM_COMMAND,53,0);HWND select=GetDlgItem(page,54);embedded &= select&&SendMessageW(select,CB_GETCOUNT,0,0)==7;history_switches++;}}
             SendMessageW(window,WM_KILLFOCUS,(WPARAM)page,0);
             navigation();SendMessageW(window,WM_SIZE,0,0);
             for(int i=0;i<MENU_COUNT;i++)isolated &= !(GetWindowLongW(controls[i],GWL_STYLE)&WS_VISIBLE);
@@ -350,7 +365,14 @@ static void test_navigation(void){
         restored &= !preferences_active();
         for(int i=0;i<MENU_COUNT;i++)restored &= !!(GetWindowLongW(controls[i],GWL_STYLE)&WS_VISIBLE);
     }
-    FILE *out=_wfopen(navigation_test_path,L"w");if(out){fprintf(out,"{\"menu_isolated\":%d,\"menu_restored\":%d,\"embedded_pages\":%d,\"page_switches\":%d,\"no_menu_bar\":%d}\n",isolated,restored,embedded,pages,GetMenu(window)==NULL);fclose(out);}
+    replay_free(&movie);uint8_t fixture[]={0,0,1,1,1,64,0};int route_ok=1;
+    for(unsigned i=0;i<sizeof fixture;i++)route_ok &= replay_append(&movie,fixture[i]);
+    route_ok &= save_coverage_route();
+    wchar_t route_path[32768];swprintf(route_path,32768,L"%ls\\coverage-last-route.txt",root);FILE *route=_wfopen(route_path,L"r");
+    unsigned expected[][3]={{1,2,0},{3,5,1},{6,6,64},{7,7,0}};
+    if(!route)route_ok=0;else{for(int i=0;i<4;i++){unsigned first,last,mask;if(fscanf(route,"%u %u %u",&first,&last,&mask)!=3||first!=expected[i][0]||last!=expected[i][1]||mask!=expected[i][2])route_ok=0;}unsigned extra;if(fscanf(route,"%u",&extra)!=EOF)route_ok=0;fclose(route);}
+    replay_free(&movie);
+    FILE *out=_wfopen(navigation_test_path,L"w");if(out){fprintf(out,"{\"menu_isolated\":%d,\"menu_restored\":%d,\"embedded_pages\":%d,\"page_switches\":%d,\"no_menu_bar\":%d,\"history_switches\":%d,\"coverage_route\":%d}\n",isolated,restored,embedded,pages,GetMenu(window)==NULL,history_switches,route_ok);fclose(out);}
     running=paused=0;quitting=1;
 }
 static void test_audio(void){
@@ -410,8 +432,9 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
             if(!glue_load_rom_wide(rom_path)){message(L"Falha ao ler a ROM.");continue;}
             for(int i=0;i<MENU_COUNT;i++)ShowWindow(controls[i],SW_HIDE);EnableMenuItem(menu,OPEN_ROM,MF_BYCOMMAND|MF_GRAYED);EnableMenuItem(menu,PLAY,MF_BYCOMMAND|MF_GRAYED);
             SetFocus(window);running=1;paused=0;glue_init(false,0);glue_require_native(true);glue_set_audio_sink(audio_sink);glue_set_frame_callback(frame);audio_open();QueryPerformanceCounter(&deadline);glue_run_step();audio_close();running=0;
+            if(glue_dispatch_miss_count())save_coverage_route();
             if(restart_requested){if(restart_process())quitting=1;else{message(L"Não foi possível reiniciar para carregar o save.");restart_requested=0;}}
-            else if(!quitting){session_ended=1;paused=0;navigation();InvalidateRect(window,NULL,FALSE);message(glue_dispatch_miss_count()?L"Este trecho ainda não foi traduzido. A partida foi interrompida e os detalhes foram registrados em runtime.log. Seus saves existentes foram preservados.":L"A partida terminou. Você pode iniciar uma nova sessão pelo menu.");}
+            else if(!quitting){session_ended=1;paused=0;navigation();InvalidateRect(window,NULL,FALSE);message(glue_dispatch_miss_count()?L"Este trecho ainda não foi traduzido. A partida foi interrompida e os detalhes foram registrados em runtime.log. O roteiro de entradas fica em coverage-last-route.txt quando possível. Seus saves existentes foram preservados.":L"A partida terminou. Você pode iniciar uma nova sessão pelo menu.");}
         }Sleep(10);
     }
     audio_close();replay_free(&movie);KillTimer(window,1);DestroyWindow(window);theme_close();if(present_dc){SelectObject(present_dc,present_old);DeleteObject(present_bitmap);DeleteDC(present_dc);}DeleteObject(font);DeleteObject(title_font);DeleteObject(background);input_close();return 0;

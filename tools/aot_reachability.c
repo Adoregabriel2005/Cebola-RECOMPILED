@@ -1,5 +1,6 @@
 /* Static branch closure over observed bank/PC seeds. This is a build tool,
-   not a runtime interpreter. Cross-slot edges use observed bank bindings;
+   not a runtime interpreter. Cross-slot edges use observed bank bindings,
+   optionally expanded to every page-2 bank;
    indirect destinations and unobserved mappings still require playtesting. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +23,9 @@ static void edge(unsigned bank,unsigned pc,unsigned target){
     for(unsigned b=0;b<16;b++)if(candidates&(1u<<b))add(b,target);
 }
 int wmain(int argc,wchar_t **argv){
-    if(argc!=4){fprintf(stderr,"aot-reachability ROM SEEDS OUTPUT\n");return 2;}
+    if(argc<4||argc>6){fprintf(stderr,"aot-reachability ROM SEEDS OUTPUT [--all-page2-banks] [--all-observed-entrypoints]\n");return 2;}
+    int broad=0,complete=0;
+    for(int i=4;i<argc;i++){if(!wcscmp(argv[i],L"--all-page2-banks"))broad=1;else if(!wcscmp(argv[i],L"--all-observed-entrypoints"))complete=1;else return 2;}
     FILE *f=_wfopen(argv[1],L"rb");if(!f)return 2;
     fseek(f,0,SEEK_END);long length=ftell(f);rewind(f);
     if(length<=0||length>16*0x4000){fclose(f);return 2;}
@@ -35,6 +38,14 @@ int wmain(int argc,wchar_t **argv){
         slot_banks[pc>>14]|=1u<<b;add(b,pc);
     }fclose(f);if(parsed!=EOF||!tail){free(rom);return 2;}
     size_t seeds=tail;
+    /* Z80 indirect jumps can enter any instruction boundary. Conservatively
+       compile every byte offset of the bank/slot bindings actually observed,
+       without claiming every offset is executable code. */
+    if(complete)for(unsigned slot=0;slot<3;slot++)for(b=0;b<16;b++)if(slot_banks[slot]&(1u<<b))
+        for(pc=slot*0x4000;pc<(slot+1)*0x4000;pc++)add(b,pc);
+    /* Sega mapper page 2 can select every ROM bank. Include all direct edges
+       into that page, even if the relevant level was never played. */
+    if(broad)slot_banks[2]=(1u<<((unsigned)size/0x4000))-1;
     while(head<tail){
         uint32_t e=queue[head++];b=e>>16;pc=e&65535;
         size_t off=(size_t)b*0x4000+(pc&0x3fff);if(off>=size)continue;

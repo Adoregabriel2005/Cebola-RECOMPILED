@@ -21,7 +21,20 @@ foreach ($name in @('banked-aot.patch','runtime-aot.patch')) {
     & git -C $engine apply --reverse --check $patch 2>$null
     if ($LASTEXITCODE) {
         & git -C $engine apply --check $patch
-        if ($LASTEXITCODE) { throw "Patch incompatível: $name. Nenhum arquivo será redefinido automaticamente." }
+        if ($LASTEXITCODE) {
+            $upgrade=Join-Path $PSScriptRoot 'patches/upgrade-0.9-to-0.10.patch'
+            if($name -eq 'banked-aot.patch') {
+                & git -C $engine apply --check $upgrade
+                if(-not $LASTEXITCODE) {
+                    & git -C $engine apply $upgrade
+                    if($LASTEXITCODE){throw 'Falha na atualização incremental do gerador.'}
+                    & git -C $engine apply --reverse --check $patch
+                    if($LASTEXITCODE){throw 'A atualização não corresponde ao patch esperado.'}
+                    continue
+                }
+            }
+            throw "Patch incompatível: $name. Nenhum arquivo será redefinido automaticamente."
+        }
         & git -C $engine apply $patch
         if ($LASTEXITCODE) { throw "Falha ao aplicar $name." }
     }

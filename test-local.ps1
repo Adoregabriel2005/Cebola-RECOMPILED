@@ -1,12 +1,14 @@
 param([Parameter(Mandatory=$true)][string]$RomPath,[string]$WorkRoot=(Join-Path $PSScriptRoot 'work'))
 $ErrorActionPreference = 'Stop'
 $rom = (Resolve-Path -LiteralPath $RomPath).Path
-$verify = Join-Path $PSScriptRoot 'local-bin/v0.9/monica-verify.exe'
+$verify = Join-Path $PSScriptRoot 'local-bin/v0.10/monica-verify.exe'
 if (-not (Test-Path -LiteralPath $verify)) { throw 'Compile o projeto antes de executar os testes.' }
 $testRoot = [IO.Path]::GetFullPath((Join-Path $WorkRoot "validation-$([Guid]::NewGuid().ToString('N'))"))
 New-Item -ItemType Directory -Force $testRoot | Out-Null
 Push-Location $testRoot
 try {
+    & (Join-Path $PSScriptRoot 'local-bin/v0.10/monica-decoder-verify.exe')
+    if($LASTEXITCODE){throw 'Falha na regressão HALT prefixado.'}
     foreach ($case in @(@{End=800;Save=650},@{End=6000;Save=3500})) {
         $prefix = "case-$($case.Save)"
         & $verify $rom $case.End $case.Save "$prefix.msave" *> "$prefix-continuous.log"
@@ -18,10 +20,24 @@ try {
         if (-not $continuous -or $continuous -ne $restored) { throw "Estado, imagem ou áudio divergente em $prefix." }
         Write-Host "PASS: reconstrução $($case.Save) -> $($case.End), estado/imagem/áudio iguais e sem fallback."
     }
+    $oldIdle=$env:MONICA_VERIFY_IDLE
+    $introReference=$env:MONICA_VERIFY_REFERENCE
+    try {
+        $env:MONICA_VERIFY_IDLE='1';$env:MONICA_VERIFY_REFERENCE=$null
+        & $verify $rom 5000 0 unused.msave *> intro-native.log
+        if($LASTEXITCODE){throw 'Falha na introdução sem atalhos.'}
+        $env:MONICA_VERIFY_REFERENCE='1'
+        & $verify $rom 5000 0 unused.msave *> intro-reference.log
+        if($LASTEXITCODE){throw 'Falha na introdução de referência.'}
+        $a=(Select-String intro-native.log -Pattern '^RESULT ').Line -split ' '
+        $b=(Select-String intro-reference.log -Pattern '^RESULT ').Line -split ' '
+        if($a[3] -ne $b[3] -or $a[4] -ne $b[4]){throw 'Introdução divergente.'}
+        Write-Host 'PASS: abertura completa sem atalhos, imagem e áudio iguais à referência.'
+    } finally {$env:MONICA_VERIFY_IDLE=$oldIdle;$env:MONICA_VERIFY_REFERENCE=$introReference}
     $oldTimeline=$env:MONICA_VERIFY_TIMELINE
     $oldReference=$env:MONICA_VERIFY_REFERENCE
     try {
-        foreach($case in @(@{Name='first-door';End=1300;Save=1000},@{Name='first-dialogue';End=3500;Save=1300},@{Name='first-road';End=5000;Save=3500},@{Name='first-boss';End=5500;Save=5100},@{Name='round-two';End=8500;Save=7900})) {
+        foreach($case in @(@{Name='first-door';End=1300;Save=1000},@{Name='first-dialogue';End=3500;Save=1300},@{Name='first-road';End=5000;Save=3500},@{Name='first-boss';End=5500;Save=5100},@{Name='round-two';End=8500;Save=7900},@{Name='round-two-explore';End=18500;Save=10100})) {
             $env:MONICA_VERIFY_TIMELINE=Join-Path $PSScriptRoot "tests/routes/$($case.Name).txt"
             $env:MONICA_VERIFY_REFERENCE=$null
             & $verify $rom $case.End $case.Save "$($case.Name).msave" *> "$($case.Name)-native.log"
@@ -69,14 +85,14 @@ try {
     & $verify $rom 800 0 unused.msave corrupt.msave *> corrupt.log
     if ($LASTEXITCODE -ne 3) { throw 'Arquivo corrompido não foi rejeitado corretamente.' }
     Write-Host 'PASS: save corrompido rejeitado.'
-    & (Join-Path $PSScriptRoot 'local-bin/v0.9/monica-system-verify.exe') (Join-Path $testRoot 'preferences.ini')
+    & (Join-Path $PSScriptRoot 'local-bin/v0.10/monica-system-verify.exe') (Join-Path $testRoot 'preferences.ini')
     if ($LASTEXITCODE) { throw 'Falha nos testes de controles/configurações.' }
-    $app = Join-Path $PSScriptRoot 'local-bin/v0.9/MonicaRecomp-v0.9.exe'
+    $app = Join-Path $PSScriptRoot 'local-bin/v0.10/MonicaRecomp-v0.10.exe'
     $report = Join-Path $testRoot 'navigation.json'
     Start-Process -FilePath $app -ArgumentList @('--selftest-navigation', ('"'+$report+'"'), '--data-dir', ('"'+$testRoot+'"')) -Wait -WindowStyle Hidden
     $nav = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
-    if ($nav.menu_isolated -ne 1 -or $nav.menu_restored -ne 1 -or $nav.embedded_pages -ne 1 -or $nav.page_switches -ne 24 -or $nav.no_menu_bar -ne 1) { throw 'Falha na navegação integrada.' }
-    Write-Host 'PASS: navegação integrada, foco/redimensionamento e retorno sem sobreposição.'
+    if ($nav.menu_isolated -ne 1 -or $nav.menu_restored -ne 1 -or $nav.embedded_pages -ne 1 -or $nav.page_switches -ne 24 -or $nav.no_menu_bar -ne 1 -or $nav.history_switches -ne 28 -or $nav.coverage_route -ne 1) { throw 'Falha na navegação integrada.' }
+    Write-Host 'PASS: navegação integrada, 28 trocas de capítulo histórico, exportação de roteiro e retorno sem sobreposição.'
     Write-Host 'Estes testes validam a reconstrução do save. Não comprovam correção da jogabilidade.'
     Write-Host "Logs: $testRoot"
 } finally { Pop-Location }
