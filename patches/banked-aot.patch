@@ -1,0 +1,76 @@
+diff --git a/recompiler/src/code_generator.c b/recompiler/src/code_generator.c
+index 236670a..af2f3d5 100644
+--- a/recompiler/src/code_generator.c
++++ b/recompiler/src/code_generator.c
+@@ -1194,3 +1194,39 @@ void cg_emit_flat_step(const SmsRom *rom, const GameConfig *cfg,
+     printf("[cg_flat] wrote %u instruction entries with %u byte-sequence variants (%zu-byte image) to %s/%s_step.{c,h}\n",
+            emitted, alternatives, image_size, out_dir, pfx);
+ }
++
++/* Profile-guided banked AOT backend. Trace entries are instruction addresses,
++ * not embedded ROM bytes; instruction decoding happens only while generating. */
++void cg_emit_bank_trace(const SmsRom *rom,const GameConfig *cfg,const char *out_dir,const char *trace_path){
++    CG_MKDIR(out_dir);
++    FILE *t=fopen(trace_path,"r");if(!t){perror(trace_path);exit(1);}
++    static unsigned char seen[16][0xC000];memset(seen,0,sizeof seen);
++    unsigned bank,pc,count=0;
++    while(fscanf(t,"%x %x",&bank,&pc)==2){
++        if(bank>=16 || pc>=0xC000){fprintf(stderr,"bad bank/PC trace entry\n");exit(1);}
++        seen[bank][pc]=1;
++    }fclose(t);
++    char path[600];snprintf(path,sizeof path,"%s/monica_step.h",out_dir);
++    FILE *h=fopen(path,"w");if(!h)exit(1);
++    fprintf(h,"#pragma once\n#include \"sms_runtime.h\"\n#include \"z80_ops.h\"\nvoid monica_step(void);\n");
++    for(unsigned b=0;b<16;b++)fprintf(h,"void monica_bank%02u(void);\n",b);
++    fclose(h);
++    snprintf(path,sizeof path,"%s/monica_step.c",out_dir);FILE *d=fopen(path,"w");if(!d)exit(1);
++    fprintf(d,"#include \"monica_step.h\"\nvoid monica_step(void){ switch(g_z80.pc < 0x400 ? 0 : sms_slot_bank(g_z80.pc)){\n");
++    for(unsigned b=0;b<16;b++)fprintf(d,"case %u: monica_bank%02u();return;\n",b,b);
++    fprintf(d,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(d);
++    for(unsigned b=0;b<16;b++){
++        snprintf(path,sizeof path,"%s/monica_bank%02u.c",out_dir,b);FILE *o=fopen(path,"w");if(!o)exit(1);
++        fprintf(o,"#include \"monica_step.h\"\nvoid monica_bank%02u(void){ Z80State *s=&g_z80;switch(s->pc){\n",b);
++        for(unsigned a=0;a<0xC000;a++)if(seen[b][a]){
++            size_t off=rom_z80_to_offset(rom,(uint16_t)a,(int)b);
++            if(off==SIZE_MAX || off>=rom->size)continue;
++            Z80Insn in;if(z80_decode(rom->data+off,rom->size-off,(uint16_t)a,&in)<=0 || in.illegal)continue;
++            fprintf(o,"case 0x%04X: { /* %s */\n",a,in.text);
++            emit_flat_match(o,&in,(uint16_t)a);
++            fprintf(o,"sms_dispatch_miss(s->pc);return;}\n");count++;
++        }
++        fprintf(o,"default:sms_dispatch_miss(s->pc);return;} }\n");fclose(o);
++    }
++    printf("[bank-aot] %u statically decoded instruction addresses emitted\n",count);
++}
+diff --git a/recompiler/src/main_sms.c b/recompiler/src/main_sms.c
+index 29eaed0..cb84fed 100644
+--- a/recompiler/src/main_sms.c
++++ b/recompiler/src/main_sms.c
+@@ -74,12 +74,14 @@ int main(int argc, char **argv){
+     const char *rom_arg = NULL;
+     const char *game_toml = NULL;
+     bool flat_step = false;
++    const char *bank_step_trace = NULL;
+     const char *flat_variant_paths[8];
+     int flat_variant_count = 0;
+ 
+     for (int i=1;i<argc;i++){
+         if (strcmp(argv[i],"--game")==0 && i+1<argc) game_toml = argv[++i];
+         else if (strcmp(argv[i],"--flat-step")==0) flat_step = true;
++        else if (strcmp(argv[i],"--bank-step-trace")==0 && i+1<argc) bank_step_trace=argv[++i];
+         else if (strcmp(argv[i],"--flat-step-variant")==0 && i+1<argc) {
+             if (flat_variant_count >= 8) {
+                 fprintf(stderr,"[SmsRecomp] at most 8 --flat-step-variant images are supported\n");
+@@ -122,6 +124,12 @@ int main(int argc, char **argv){
+                 rom.platform==SMS_PLATFORM_GG?"gg":"sms");
+     }
+ 
++    if(bank_step_trace){
++        extern void cg_emit_bank_trace(const SmsRom*,const GameConfig*,const char*,const char*);
++        char dir[260];dirname_of(game_toml,dir,sizeof dir);
++        char out[300];snprintf(out,sizeof out,"%sgenerated",dir);
++        cg_emit_bank_trace(&rom,&cfg,out,bank_step_trace);rom_free(&rom);return 0;
++    }
+     if (flat_step) {
+         SmsRom variants[8];
+         int loaded = 0;

@@ -1,0 +1,153 @@
+diff --git a/runner/glue.c b/runner/glue.c
+index d615ad8..d4dc431 100644
+--- a/runner/glue.c
++++ b/runner/glue.c
+@@ -43,6 +43,9 @@ static uint64_t  g_frame;
+ static uint64_t  g_frame_limit;
+ static jmp_buf   g_quit_env;
+ static bool      g_running;
++static bool      g_native_only;
++static bool      g_step_irq_pending;
++void glue_require_native(bool enabled){ g_native_only=enabled; }
+ 
+ /* ---- always-on timing instrumentation (PRINCIPLES #17: query, don't probe) --
+  * g_frame counts VDP frame boundaries (== real VBlanks). g_irq_taken counts how
+@@ -1107,7 +1110,9 @@ void sms_dispatch_miss(uint16_t addr){
+         }
+     }
+ 
+-    /* Robust fallback: interpret the routine to completion with live banking. */
++    /* The application never silently substitutes interpretation for recompilation. */
++    if(g_native_only && g_running) longjmp(g_quit_env,1);
++    /* Developer-only fallback for discovery. */
+     uint64_t _c0 = g_z80.cyc;
+     hybrid_interpret(addr);
+     mb_interp(addr, g_z80.cyc - _c0);
+@@ -1152,6 +1157,7 @@ void glue_init(bool is_gg, uint64_t frame_limit){
+     g_psg_cyc = 0;
+     g_pad1 = g_pad2 = 0;                  /* controllers idle */
+     g_hybrid_cyc = g_hybrid_calls = 0;
++    g_step_irq_pending=false;
+     glue_diff_init();                    /* differential harness (env-gated, no-op unless SMS_DIFF_ADDR) */
+ }
+ 
+@@ -1164,8 +1170,19 @@ void glue_run_interp(void){
+     g_hz_init = true;
+     g_hz.pc = 0x0000;            /* reset vector; the game sets SP/IM1 itself */
+ 
++    const char *trace_path=getenv("SMS_AOT_TRACE");
++    FILE *trace=trace_path?fopen(trace_path,"a"):NULL;
++    static uint8_t visited[16][0x10000];
++    memset(visited,0,sizeof visited);
+     if (setjmp(g_quit_env) == 0){
+         for (;;){
++            if(trace && !g_hz.halted){
++                unsigned pc=g_hz.pc;
++                int bank=pc<0x400 ? 0 : sms_slot_bank((uint16_t)pc);
++                if(bank>=0 && bank<16 && !visited[bank][pc]){
++                    visited[bank][pc]=1;fprintf(trace,"%02X %04X\n",bank,pc);
++                }
++            }
+             if (vdp_irq_asserted() && g_hz.iff1 && !g_hz.int_pending)
+                 z80_gen_int(&g_hz, 0xFF);          /* IM1 vector 0x0038 */
+             z80_step(&g_hz); g_frame_ic++;
+@@ -1174,10 +1191,40 @@ void glue_run_interp(void){
+         }
+     }
+     g_running = false;
++    if(trace)fclose(trace);
+     fprintf(stderr, "[interp] reference run stopped after %llu frames\n",
+             (unsigned long long)g_frame);
+ }
+ 
++/* Native AOT instruction scheduler. The guest CALL/RET stack lives in RAM,
++ * never on the host C call stack. No interpreter is used on this path. */
++extern void monica_step(void);
++void glue_run_step(void){
++    g_running=true;
++    if(setjmp(g_quit_env)==0){
++        for(;;){
++            if(vdp_irq_asserted() && g_z80.iff1) g_step_irq_pending=true;
++            if(g_z80.halted){
++                g_z80.cyc+=4;g_z80.r=(uint8_t)((g_z80.r&0x80)|((g_z80.r+1)&0x7f));
++            }else{
++                g_dbg_pc=g_z80.pc;monica_step();g_frame_ic++;
++            }
++            if(g_z80.ei_block){g_z80.ei_block=0;}
++            else if(g_step_irq_pending && g_z80.iff1){
++                g_step_irq_pending=false;
++                g_z80.iff1=g_z80.iff2=false;g_z80.halted=false;
++                g_z80.sp=(uint16_t)(g_z80.sp-2);sms_write16(g_z80.sp,g_z80.pc);
++                g_z80.pc=0x0038;g_z80.cyc+=13;g_irq_taken++;
++                g_z80.r=(uint8_t)((g_z80.r&0x80)|((g_z80.r+1)&0x7f));
++            }
++            advance_vdp(g_z80.cyc);g_sync_deadline=g_next_line_cyc;
++        }
++    }
++    g_running=false;
++    fprintf(stderr,"[aot] frames=%llu misses=%d irq=%llu, interpreter disabled\n",
++        (unsigned long long)g_frame,g_miss_count,(unsigned long long)g_irq_taken);
++}
++
+ void glue_run(void){
+     g_running = true;
+     if (setjmp(g_quit_env) == 0){
+@@ -1257,3 +1304,33 @@ void     glue_set_input_cb(uint8_t (*cb)(uint64_t frame)){ g_input_cb = cb; }
+ uint64_t glue_frame_count(void){ return g_frame; }
+ int      glue_dispatch_miss_count(void){ return g_miss_count; }
+ size_t   glue_rom_size(void){ return g_rom_size; }
++
++/* Local session verification. Called only at the same frame callback boundary.
++ * Replay restores the execution stack by rerunning from reset; this is a
++ * verification digest, not a partial RAM snapshot presented as a save state. */
++#include "replay.h"
++bool glue_load_rom_wide(const wchar_t *path){
++    FILE *f=_wfopen(path,L"rb");if(!f)return false;
++    uint8_t *bytes=malloc(MONICA_ROM_SIZE);
++    if(!bytes){fclose(f);return false;}
++    size_t n=fread(bytes,1,MONICA_ROM_SIZE,f);int extra=fgetc(f);fclose(f);
++    if(n!=MONICA_ROM_SIZE || extra!=EOF || monica_crc32(bytes,n)!=MONICA_ROM_CRC){free(bytes);return false;}
++    free(g_rom);g_rom=bytes;g_rom_size=n;return true;
++}
++uint64_t glue_state_hash(void){
++    uint64_t h = UINT64_C(14695981039346656037);
++    h=monica_hash(&g_z80,sizeof g_z80,h);
++    h=monica_hash(g_ram,sizeof g_ram,h);
++    h=monica_hash(g_bank,sizeof g_bank,h);
++    h=monica_hash(&g_vdp,sizeof g_vdp,h);
++    h=monica_hash(&g_next_line_cyc,sizeof g_next_line_cyc,h);
++    h=monica_hash(&g_sync_deadline,sizeof g_sync_deadline,h);
++    h=monica_hash(&g_frame,sizeof g_frame,h);
++    h=monica_hash(&g_step_irq_pending,sizeof g_step_irq_pending,h);
++    h=monica_hash(&g_psg_cyc,sizeof g_psg_cyc,h);
++    FILE *f=tmpfile();
++    if(!f || !psg_save_state(f)){ if(f) fclose(f); return 0; }
++    rewind(f); uint8_t buf[256]; size_t n;
++    while((n=fread(buf,1,sizeof buf,f))>0) h=monica_hash(buf,n,h);
++    fclose(f); return h;
++}
+diff --git a/runner/glue.h b/runner/glue.h
+index 6b2160c..89db39b 100644
+--- a/runner/glue.h
++++ b/runner/glue.h
+@@ -7,9 +7,12 @@
+ #include <stdint.h>
+ #include <stdbool.h>
+ #include <stddef.h>
++#include <wchar.h>
+ 
+ /* Load a .sms/.gg image into the runner's ROM space. Returns false on error. */
+ bool     glue_load_rom(const char *path);
++bool     glue_load_rom_wide(const wchar_t *path);
++void     glue_require_native(bool enabled);
+ 
+ /* Initialise bus/VDP/CPU for a fresh run. frame_limit==0 means run forever. */
+ void     glue_init(bool is_gg, uint64_t frame_limit);
+@@ -17,6 +20,7 @@ void     glue_init(bool is_gg, uint64_t frame_limit);
+ /* Enter the game at the reset vector. Returns when the frame limit is hit
+  * (the reset routine itself never returns; a longjmp unwinds out of it). */
+ void     glue_run(void);
++void     glue_run_step(void);
+ 
+ /* Oracle reference run: execute the WHOLE game under the vendored superzazu
+  * Z80 interpreter (instead of the recompiled code) over the SAME bus / VDP /

@@ -1,0 +1,11 @@
+[game]
+output_prefix = "monica"
+platform = "sms"
+rom = "monica.sms"
+
+[mapper]
+kind = "sega"
+
+[functions]
+extra = []
+blacklist = []
