@@ -4,12 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-uint64_t monica_hash(const void *data, size_t n, uint64_t h){
+uint64_t cebola_hash(const void *data, size_t n, uint64_t h){
     const uint8_t *p=data;
     while(n--) { h ^= *p++; h *= UINT64_C(1099511628211); }
     return h;
 }
-uint32_t monica_crc32(const void *data,size_t n){
+uint32_t cebola_crc32(const void *data,size_t n){
     const uint8_t *p=data; uint32_t c=~0u;
     while(n--){ c ^= *p++; for(int i=0;i<8;i++) c=(c>>1)^(0xEDB88320u & (0u-(c&1))); }
     return ~c;
@@ -32,9 +32,9 @@ static uint64_t get64(const uint8_t *p){ return get32(p)|((uint64_t)get32(p+4)<<
 int replay_save(const wchar_t *path,const Replay *r,uint64_t frame,uint64_t hash){
     if(!frame || frame!=((uint64_t)r->count+1) || r->count>REPLAY_MAX_FRAMES) return 0;
     uint8_t h[64]={0}; memcpy(h,"MNCRPLY1",8);
-    put32(h+8,REPLAY_BUILD); put32(h+12,MONICA_ROM_CRC); put32(h+16,MONICA_ROM_SIZE);
+    put32(h+8,REPLAY_BUILD); put32(h+12,CEBOLA_ROM_CRC); put32(h+16,CEBOLA_ROM_SIZE);
     put32(h+20,r->count); put64(h+24,frame); put64(h+32,hash);
-    put32(h+40,monica_crc32(r->inputs,r->count)); put32(h+44,monica_crc32(h,44));
+    put32(h+40,cebola_crc32(r->inputs,r->count)); put32(h+44,cebola_crc32(h,44));
     wchar_t temp[32768]; if(wcslen(path)>32000) return 0;
     swprintf(temp,32768,L"%ls.tmp",path);
     FILE *f=_wfopen(temp,L"wb"); if(!f) return 0;
@@ -50,14 +50,14 @@ int replay_load(const wchar_t *path,Replay *out){
     FILE *f=_wfopen(path,L"rb"); if(!f) return 0;
     uint8_t h[64]; Replay r={0}; int ok=0;
     if(fread(h,1,64,f)!=64) goto done;
-    if(memcmp(h,"MNCRPLY1",8) || get32(h+8)!=REPLAY_BUILD || get32(h+12)!=MONICA_ROM_CRC ||
-       get32(h+16)!=MONICA_ROM_SIZE || get32(h+44)!=monica_crc32(h,44)) goto done;
+    if(memcmp(h,"MNCRPLY1",8) || get32(h+8)!=REPLAY_BUILD || get32(h+12)!=CEBOLA_ROM_CRC ||
+       get32(h+16)!=CEBOLA_ROM_SIZE || get32(h+44)!=cebola_crc32(h,44)) goto done;
     for(int i=48;i<64;i++) if(h[i]) goto done;
     r.count=r.capacity=get32(h+20); r.target=get64(h+24); r.state_hash=get64(h+32);
     if(r.count>REPLAY_MAX_FRAMES || r.target!=((uint64_t)r.count+1)) goto done;
     r.inputs=malloc(r.count ? r.count : 1); if(!r.inputs) goto done;
     if(fread(r.inputs,1,r.count,f)!=r.count || fgetc(f)!=EOF) goto done;
-    if(monica_crc32(r.inputs,r.count)!=get32(h+40)) goto done;
+    if(cebola_crc32(r.inputs,r.count)!=get32(h+40)) goto done;
     for(uint32_t i=0;i<r.count;i++) if(r.inputs[i] & ~0x7f) goto done;
     ok=1;
 done:

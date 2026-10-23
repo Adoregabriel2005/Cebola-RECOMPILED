@@ -1,11 +1,11 @@
-# Mônica Recomp 0.10.0 — Windows x64 portátil
+# Cebola - RECOMPILED 0.10.1 — Windows x64 portátil
 
 ## Baixar e jogar
 
-1. Baixe MonicaRecomp-v0.10.0-windows-x64.zip na página Releases.
+1. Baixe CebolaRecompiled-v0.10.1-windows-x64.zip na página Releases.
 2. Extraia o ZIP inteiro. Não execute o programa de dentro do arquivo compactado.
-3. Abra MonicaRecomp.exe na pasta MonicaRecomp.
-4. Clique em Selecionar ROM e escolha sua cópia compatível de Mônica no Castelo do Dragão (Brazil). Depois clique em Jogar.
+3. Abra CebolaRecompiled.exe na pasta CebolaRecompiled.
+4. Clique em Selecionar ROM e escolha sua ROM compatível. Depois clique em Jogar.
 
 Não é necessário instalar compiladores ou usar PowerShell para jogar com o pacote portátil. Mantenha SDL3.dll, assets/ e as licenças juntos do executável. A ROM não acompanha o download.
 
@@ -15,7 +15,7 @@ ROM suportada: 262144 bytes, CRC32 01D67C0B, SHA256 484FDF3CB85C1BFD1CA938CFD59F
 
 Setas: mover; Z/X: botões 1/2; P: Pause do console; Esc: menu do PC; F5/F9: salvar/carregar; F11: tela cheia. O remapeamento fica em Controles.
 
-Saves da 0.9 e da 0.10 continuam compatíveis (revisão 3). Dados e configurações ficam em %LOCALAPPDATA%/MonicaRecompPrototype. Não são gravados dentro da pasta do jogo.
+O formato de save permanece na revisão 3. Arquivos anteriores podem ser copiados manualmente para a nova pasta de dados. Dados e configurações ficam em %LOCALAPPDATA%/CebolaRecompiled. Não são gravados dentro da pasta do jogo.
 
 ## Requisitos estimados para 720p
 

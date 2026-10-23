@@ -14,8 +14,8 @@ index af2f3d5..cc618bc 100644
 @@ -1217,16 +1217,28 @@ void cg_emit_bank_trace(const SmsRom *rom,const GameConfig *cfg,const char *out_
      fprintf(d,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(d);
      for(unsigned b=0;b<16;b++){
-         snprintf(path,sizeof path,"%s/monica_bank%02u.c",out_dir,b);FILE *o=fopen(path,"w");if(!o)exit(1);
--        fprintf(o,"#include \"monica_step.h\"\nvoid monica_bank%02u(void){ Z80State *s=&g_z80;switch(s->pc){\n",b);
+         snprintf(path,sizeof path,"%s/cebola_bank%02u.c",out_dir,b);FILE *o=fopen(path,"w");if(!o)exit(1);
+-        fprintf(o,"#include \"cebola_step.h\"\nvoid cebola_bank%02u(void){ Z80State *s=&g_z80;switch(s->pc){\n",b);
 -        for(unsigned a=0;a<0xC000;a++)if(seen[b][a]){
 -            size_t off=rom_z80_to_offset(rom,(uint16_t)a,(int)b);
 -            if(off==SIZE_MAX || off>=rom->size)continue;
@@ -23,7 +23,7 @@ index af2f3d5..cc618bc 100644
 -            fprintf(o,"case 0x%04X: { /* %s */\n",a,in.text);
 -            emit_flat_match(o,&in,(uint16_t)a);
 -            fprintf(o,"sms_dispatch_miss(s->pc);return;}\n");count++;
-+        fprintf(o,"#include \"monica_step.h\"\n#if defined(_MSC_VER)\n#define AOT_NOINLINE __declspec(noinline)\n#else\n#define AOT_NOINLINE __attribute__((noinline))\n#endif\n");
++        fprintf(o,"#include \"cebola_step.h\"\n#if defined(_MSC_VER)\n#define AOT_NOINLINE __declspec(noinline)\n#else\n#define AOT_NOINLINE __attribute__((noinline))\n#endif\n");
 +        unsigned char chunks[48]={0};
 +        /* Bound each native switch to 1 KiB of guest addresses. Very large
 +           conservative switches otherwise make optimizer time grow sharply. */
@@ -43,7 +43,7 @@ index af2f3d5..cc618bc 100644
 +            fprintf(o,"default:sms_dispatch_miss(s->pc);return;} }\n");
          }
 -        fprintf(o,"default:sms_dispatch_miss(s->pc);return;} }\n");fclose(o);
-+        fprintf(o,"void monica_bank%02u(void){ switch(g_z80.pc >> 10){\n",b);
++        fprintf(o,"void cebola_bank%02u(void){ switch(g_z80.pc >> 10){\n",b);
 +        for(unsigned chunk=0;chunk<48;chunk++)if(chunks[chunk])fprintf(o,"case %u: bank%02u_chunk%02u();return;\n",chunk,b,chunk);
 +        fprintf(o,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(o);
      }

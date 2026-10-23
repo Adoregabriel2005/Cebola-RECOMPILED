@@ -1,22 +1,15 @@
-#define COBJMACROS
 #include "theme.h"
-#include <wincodec.h>
 #include <stdlib.h>
 #include <math.h>
 #include <wchar.h>
 #include "png_write.h"
 
-static uint32_t *art;
-static HBITMAP logo;
-static RECT logo_bounds;
 static DWORD entered;
-static UINT art_w,art_h;
-static BITMAPINFO art_info;
 static HDC canvas;
 static HBITMAP canvas_bitmap,previous_bitmap;
 static HFONT title,subtitle,label,small,menu;
 static int canvas_w,canvas_h;
-static const COLORREF cream=RGB(255,242,208),gold=RGB(255,205,91),green=RGB(7,32,27);
+static const COLORREF cream=RGB(235,247,255),gold=RGB(30,195,238),green=RGB(7,16,33);
 static int sx(int x){return MulDiv(x,canvas_w,1280);}
 static int sy(int y){return MulDiv(y,canvas_h,720);}
 static void fill(HDC dc,RECT r,COLORREF color){HBRUSH b=CreateSolidBrush(color);FillRect(dc,&r,b);DeleteObject(b);}
@@ -27,51 +20,15 @@ static void word(HDC dc,int x,int y,int w,int h,const wchar_t *s,HFONT f,COLORRE
 static HFONT make_font(int size,int weight,const wchar_t *family){
     return CreateFontW(-sy(size),0,0,0,weight,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,family);
 }
-static HBITMAP load_logo(const wchar_t *path){
-    IWICImagingFactory *factory=NULL;IWICBitmapDecoder *decoder=NULL;IWICBitmapFrameDecode *frame=NULL;IWICFormatConverter *converter=NULL;UINT w=0,h=0;HBITMAP bitmap=NULL;
-    HRESULT hr=CoCreateInstance(&CLSID_WICImagingFactory,NULL,CLSCTX_INPROC_SERVER,&IID_IWICImagingFactory,(void**)&factory);
-    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateDecoderFromFilename(factory,path,NULL,GENERIC_READ,WICDecodeMetadataCacheOnLoad,&decoder);
-    if(SUCCEEDED(hr))hr=IWICBitmapDecoder_GetFrame(decoder,0,&frame);
-    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateFormatConverter(factory,&converter);
-    if(SUCCEEDED(hr))hr=IWICFormatConverter_Initialize(converter,(IWICBitmapSource*)frame,&GUID_WICPixelFormat32bppPBGRA,WICBitmapDitherTypeNone,NULL,0,WICBitmapPaletteTypeCustom);
-    if(SUCCEEDED(hr))hr=IWICFormatConverter_GetSize(converter,&w,&h);
-    if(SUCCEEDED(hr)&&w&&h&&w<=8192&&h<=8192){
-        BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-(LONG)h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
-        uint32_t *pixels=NULL;bitmap=CreateDIBSection(NULL,&info,DIB_RGB_COLORS,(void**)&pixels,NULL,0);
-        if(bitmap){hr=IWICFormatConverter_CopyPixels(converter,NULL,w*4,w*h*4,(BYTE*)pixels);
-            logo_bounds=(RECT){(LONG)w,(LONG)h,0,0};
-            if(SUCCEEDED(hr))for(UINT y=0;y<h;y++)for(UINT x=0;x<w;x++)if((pixels[y*w+x]>>24)>8){if((LONG)x<logo_bounds.left)logo_bounds.left=x;if((LONG)y<logo_bounds.top)logo_bounds.top=y;if((LONG)x>=logo_bounds.right)logo_bounds.right=x+1;if((LONG)y>=logo_bounds.bottom)logo_bounds.bottom=y+1;}
-            if(FAILED(hr)||logo_bounds.right<=logo_bounds.left){DeleteObject(bitmap);bitmap=NULL;}
-        }
-    }
-    if(converter)IWICFormatConverter_Release(converter);if(frame)IWICBitmapFrameDecode_Release(frame);if(decoder)IWICBitmapDecoder_Release(decoder);if(factory)IWICImagingFactory_Release(factory);return bitmap;
-}
 int theme_init(const wchar_t *path){
-    IWICImagingFactory *factory=NULL;IWICBitmapDecoder *decoder=NULL;IWICBitmapFrameDecode *frame=NULL;IWICFormatConverter *converter=NULL;
-    CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);
-    HRESULT hr=CoCreateInstance(&CLSID_WICImagingFactory,NULL,CLSCTX_INPROC_SERVER,&IID_IWICImagingFactory,(void**)&factory);
-    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateDecoderFromFilename(factory,path,NULL,GENERIC_READ,WICDecodeMetadataCacheOnLoad,&decoder);
-    if(SUCCEEDED(hr))hr=IWICBitmapDecoder_GetFrame(decoder,0,&frame);
-    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateFormatConverter(factory,&converter);
-    if(SUCCEEDED(hr))hr=IWICFormatConverter_Initialize(converter,(IWICBitmapSource*)frame,&GUID_WICPixelFormat32bppBGR,WICBitmapDitherTypeNone,NULL,0,WICBitmapPaletteTypeCustom);
-    if(SUCCEEDED(hr))hr=IWICFormatConverter_GetSize(converter,&art_w,&art_h);
-    if(SUCCEEDED(hr) && art_w && art_h && art_w<=8192 && art_h<=8192){
-        art=malloc((size_t)art_w*art_h*4);if(!art)hr=E_OUTOFMEMORY;
-        else hr=IWICFormatConverter_CopyPixels(converter,NULL,art_w*4,art_w*art_h*4,(BYTE*)art);
-    }else hr=E_FAIL;
-    if(converter)IWICFormatConverter_Release(converter);if(frame)IWICBitmapFrameDecode_Release(frame);
-    if(decoder)IWICBitmapDecoder_Release(decoder);if(factory)IWICImagingFactory_Release(factory);
-    if(FAILED(hr)){free(art);art=NULL;return 0;}
-    art_info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);art_info.bmiHeader.biWidth=art_w;art_info.bmiHeader.biHeight=-(LONG)art_h;
-    art_info.bmiHeader.biPlanes=1;art_info.bmiHeader.biBitCount=32;
-    wchar_t file[32768];wcsncpy(file,path,32767);wchar_t *slash=wcsrchr(file,L'\\');wchar_t *forward=wcsrchr(file,L'/');if(forward && (!slash || forward>slash))slash=forward;if(slash)wcscpy(slash+1,L"title-logo.png");
-    logo=load_logo(file);entered=GetTickCount();return 1;
+    (void)path;
+    entered=GetTickCount();return 1;
 }
 static void free_canvas(void){
     if(canvas){SelectObject(canvas,previous_bitmap);DeleteObject(canvas_bitmap);DeleteDC(canvas);canvas=NULL;}
     DeleteObject(title);DeleteObject(subtitle);DeleteObject(label);DeleteObject(small);DeleteObject(menu);
 }
-void theme_close(void){DeleteObject(logo);free_canvas();free(art);art=NULL;CoUninitialize();}
+void theme_close(void){free_canvas();}
 static void prepare(HDC dc,int w,int h){
     if(w==canvas_w && h==canvas_h && canvas)return;
     free_canvas();canvas_w=w;canvas_h=h;canvas=CreateCompatibleDC(dc);canvas_bitmap=CreateCompatibleBitmap(dc,w,h);previous_bitmap=SelectObject(canvas,canvas_bitmap);
@@ -80,16 +37,9 @@ static void prepare(HDC dc,int w,int h){
 }
 void theme_render(HDC dc,int w,int h,int paused,const uint32_t *fb,int ready,int slot){
     if(w<=0 || h<=0)return;prepare(dc,w,h);RECT all={0,0,w,h};fill(canvas,all,green);
-    if(art){
-        double scale=fmax((double)w/art_w,(double)h/art_h);int dw=(int)(art_w*scale),dh=(int)(art_h*scale);
-        SetStretchBltMode(canvas,HALFTONE);StretchDIBits(canvas,(w-dw)/2,(h-dh)/2,dw,dh,0,0,art_w,art_h,art,&art_info,DIB_RGB_COLORS,SRCCOPY);
-    }
-    if(logo){
-        HDC image=CreateCompatibleDC(canvas);HGDIOBJ old=SelectObject(image,logo);SetStretchBltMode(canvas,HALFTONE);
-        int lw=logo_bounds.right-logo_bounds.left,lh=logo_bounds.bottom-logo_bounds.top;double scale=fmin((double)sx(570)/lw,(double)sy(180)/lh);int dw=(int)(lw*scale),dh=(int)(lh*scale);
-        BLENDFUNCTION blend={AC_SRC_OVER,0,255,AC_SRC_ALPHA};AlphaBlend(canvas,sx(77),sy(55)+(sy(180)-dh)/2,dw,dh,image,logo_bounds.left,logo_bounds.top,lw,lh,blend);SelectObject(image,old);DeleteDC(image);
-    }else word(canvas,75,78,620,110,L"MÔNICA",title,cream,DT_LEFT|DT_SINGLELINE);
-    word(canvas,82,242,470,28,paused?L"Um respiro antes da próxima aventura.":L"O castelo espera por você.",label,RGB(193,214,189),DT_LEFT|DT_SINGLELINE);
+    word(canvas,75,78,620,110,L"CEBOLA",title,cream,DT_LEFT|DT_SINGLELINE);
+    word(canvas,82,184,530,44,L"RECOMPILED",subtitle,gold,DT_LEFT|DT_SINGLELINE);
+    word(canvas,82,242,470,28,paused?L"Um respiro antes da próxima aventura.":L"Sua próxima partida começa aqui.",label,RGB(193,214,189),DT_LEFT|DT_SINGLELINE);
     if(paused && fb){
         RECT border={sx(797),sy(333),sx(1211),sy(649)};fill(canvas,border,RGB(239,198,106));
         BITMAPINFO info={0};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=256;info.bmiHeader.biHeight=-192;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;
@@ -103,7 +53,7 @@ void theme_render(HDC dc,int w,int h,int paused,const uint32_t *fb,int ready,int
             int size=sy(i%3?2:3);Ellipse(canvas,x,y,x+size+1,y+size+1);SelectObject(canvas,pen);SelectObject(canvas,old);DeleteObject(brush);
         }
     }
-    wchar_t status[180];swprintf(status,180,paused?L"Slot %d selecionado  ·  Seu progresso, no seu PC":ready?L"ROM pronta  ·  Brasil  ·  Master System  ·  Slot %d":L"Selecione sua ROM para começar  ·  Slot %d",slot);
+    wchar_t status[180];swprintf(status,180,paused?L"Slot %d selecionado  ·  Seu progresso, no seu PC":ready?L"ROM pronta  ·  Master System  ·  Slot %d":L"Selecione sua ROM para começar  ·  Slot %d",slot);
     word(canvas,82,665,760,25,status,small,ready?RGB(175,220,159):cream,DT_LEFT|DT_SINGLELINE);
     word(canvas,82,694,800,20,L"↑ ↓ navegar     Enter selecionar     Esc voltar     F11 tela cheia",small,RGB(155,180,158),DT_LEFT|DT_SINGLELINE);
     BitBlt(dc,0,0,w,h,canvas,0,0,SRCCOPY);
@@ -120,10 +70,10 @@ void theme_button(const DRAWITEMSTRUCT *item,int selected,int index){
     static float levels[7];static DWORD stamps[7];DWORD tick=GetTickCount();float dt=(tick-stamps[index])/110.0f;if(dt>1)dt=1;stamps[index]=tick;
     levels[index]+=((active?1.0f:0.0f)-levels[index])*dt;float level=levels[index];
     if(level>0.02f){
-        HBRUSH b=CreateSolidBrush(item->itemState&ODS_SELECTED?RGB(137,24,35):RGB((int)(16+159*level),(int)(43-9*level),(int)(32+13*level)));HPEN pen=CreatePen(PS_SOLID,sy(1)+1,gold);
+        HBRUSH b=CreateSolidBrush(item->itemState&ODS_SELECTED?RGB(8,73,132):RGB(10,(int)(32+52*level),(int)(58+80*level)));HPEN pen=CreatePen(PS_SOLID,sy(1)+1,gold);
         HGDIOBJ oldb=SelectObject(dc,b),oldp=SelectObject(dc,pen);RoundRect(dc,1,1,r.right-1,r.bottom-1,sy(10),sy(10));SelectObject(dc,oldp);SelectObject(dc,oldb);DeleteObject(pen);DeleteObject(b);
     }
-    const wchar_t *labels[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o jogo",L"Sair"};
+    const wchar_t *labels[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o projeto",L"Sair"};
     wchar_t title_text[160];if(item->hwndItem)GetWindowTextW(item->hwndItem,title_text,160);else wcscpy(title_text,labels[index]);
     HFONT old=SelectObject(dc,menu);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,disabled?RGB(102,124,115):active?cream:RGB(231,234,206));
     RECT tr={sx(40),0,r.right-sx(42),r.bottom};DrawTextW(dc,title_text,-1,&tr,DT_LEFT|DT_VCENTER|DT_SINGLELINE);

@@ -1,4 +1,4 @@
-param([string]$Repository = 'monica-no-castelo-do-dragao-recomp')
+param([string]$Repository = 'Cebola-RECOMPILED')
 $ErrorActionPreference='Stop'
 Get-Command gh,git -ErrorAction Stop | Out-Null
 Push-Location $PSScriptRoot
@@ -20,10 +20,10 @@ try {
  if($LASTEXITCODE -eq 0){throw 'Esse repositório já existe. Inspecione-o antes de atualizar; este script só cria repositórios novos.'}
  & git diff --cached --quiet
  if($LASTEXITCODE -eq 1){
-  & git -c "user.name=$owner" -c "user.email=$accountId+$owner@users.noreply.github.com" commit -m 'Add educational Monica Master System recomp project'
+  & git -c "user.name=$owner" -c "user.email=$accountId+$owner@users.noreply.github.com" commit -m 'Add educational Cebola Master System recomp project'
   if($LASTEXITCODE){throw 'Falha ao criar o commit.'}
  }
- & gh repo create "$owner/$Repository" --public --description 'Estudo de recompilação de Mônica no Castelo do Dragão para Windows; requer ROM própria.' --source . --remote origin --push
+ & gh repo create "$owner/$Repository" --public --description 'Estudo de recompilação de Cebola - RECOMPILED para Windows; requer ROM própria.' --source . --remote origin --push
  if($LASTEXITCODE){throw 'A publicação não foi concluída. Nenhuma ROM foi enviada por este script.'}
 } finally {Pop-Location}
 

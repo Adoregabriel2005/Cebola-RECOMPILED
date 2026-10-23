@@ -1,6 +1,6 @@
 # Estado da publicação
 
-A publicação atual é **v0.10.0**, um release normal promovido a **Latest**, com ZIP Windows x64 portátil para baixar, extrair e executar. A publicação anterior v0.10.0-preview.1 permanece como histórico de fontes. O status do GitHub não certifica estabilidade integral: os limites abaixo continuam declarados.
+A publicação atual é **v0.10.1**, um release normal promovido a **Latest**, com ZIP Windows x64 portátil para baixar, extrair e executar. Publicações anteriores permanecem como histórico. O status do GitHub não certifica estabilidade integral: os limites abaixo continuam declarados.
 
 ## Validações e permissões ainda pendentes
 
@@ -15,4 +15,4 @@ Os requisitos publicados são estimativas, com evidências e lacunas em REQUISIT
 
 Execute release-source.ps1 a partir de um checkout Git limpo e commitado. O script empacota somente o conteúdo do commit informado, verifica a ausência de ROMs, binários e pastas de geração, e cria ZIP, manifesto com commit e SHA256SUMS.txt. Não baixa dependências nem envia arquivos ao GitHub. O diretório release-dist/ é ignorado pelo Git.
 
-O pacote portátil é criado por release-portable.ps1 com uma lista explícita: aplicativo, SDL3, quatro imagens usadas na interface, licenças, instruções e documentação. Não inclui ROM, ferramentas de diagnóstico, saves, configurações de usuário ou dumps. O executável contém o runtime e traduções nativas geradas no build; a exigência de ROM não significa ausência de código derivado do jogo. A publicação foi solicitada pelo autor e não é uma declaração de regularização das permissões pendentes.
+O pacote portátil é criado por release-portable.ps1 com uma lista explícita: aplicativo, SDL3, logo Underplay, licenças, instruções e documentação. Não inclui ROM, ferramentas de diagnóstico, saves, configurações de usuário ou dumps. O executável contém o runtime e traduções nativas geradas no build; a exigência de ROM não significa ausência de código derivado do jogo. A publicação foi solicitada pelo autor e não é uma declaração de regularização das permissões pendentes.

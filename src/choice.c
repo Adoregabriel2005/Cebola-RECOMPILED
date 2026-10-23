@@ -35,16 +35,16 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     case WM_PAINT:case WM_PRINTCLIENT:{
         PAINTSTRUCT ps;HDC target=msg==WM_PAINT?BeginPaint(hwnd,&ps):(HDC)wp;RECT r;GetClientRect(hwnd,&r);if(r.right<1||r.bottom<1){if(msg==WM_PAINT)EndPaint(hwnd,&ps);return 0;}
         HDC dc=CreateCompatibleDC(target);HBITMAP bitmap=CreateCompatibleBitmap(target,r.right,r.bottom);HGDIOBJ old=SelectObject(dc,bitmap);int focus=GetFocus()==hwnd;
-        HBRUSH brush=CreateSolidBrush(RGB(12,31,26));FillRect(dc,&r,brush);DeleteObject(brush);
-        brush=CreateSolidBrush(c->hover||focus?RGB(36,67,52):RGB(21,47,38));HPEN pen=CreatePen(PS_SOLID,1,focus?RGB(255,205,91):RGB(76,104,77));HGDIOBJ ob=SelectObject(dc,brush),op=SelectObject(dc,pen);
+        HBRUSH brush=CreateSolidBrush(RGB(7,16,33));FillRect(dc,&r,brush);DeleteObject(brush);
+        brush=CreateSolidBrush(c->hover||focus?RGB(18,66,103):RGB(13,32,54));HPEN pen=CreatePen(PS_SOLID,1,focus?RGB(30,195,238):RGB(58,103,135));HGDIOBJ ob=SelectObject(dc,brush),op=SelectObject(dc,pen);
         RoundRect(dc,0,0,r.right-1,r.bottom-1,12,12);SelectObject(dc,op);SelectObject(dc,ob);DeleteObject(pen);DeleteObject(brush);
-        SelectObject(dc,c->font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(246,235,206));int arrow=r.bottom*3/4;if(arrow<18)arrow=18;
+        SelectObject(dc,c->font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(235,247,255));int arrow=r.bottom*3/4;if(arrow<18)arrow=18;
         RECT text={arrow,0,r.right-arrow,r.bottom};if(c->index>=0&&c->index<c->count)DrawTextW(dc,c->values[c->index],-1,&text,DT_SINGLELINE|DT_VCENTER|DT_CENTER|DT_END_ELLIPSIS);
-        SetTextColor(dc,focus||c->hover?RGB(255,205,91):RGB(155,183,144));RECT left={0,0,arrow,r.bottom},right={r.right-arrow,0,r.right,r.bottom};DrawTextW(dc,L"‹",-1,&left,DT_CENTER|DT_VCENTER|DT_SINGLELINE);DrawTextW(dc,L"›",-1,&right,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+        SetTextColor(dc,focus||c->hover?RGB(30,195,238):RGB(156,194,221));RECT left={0,0,arrow,r.bottom},right={r.right-arrow,0,r.right,r.bottom};DrawTextW(dc,L"‹",-1,&left,DT_CENTER|DT_VCENTER|DT_SINGLELINE);DrawTextW(dc,L"›",-1,&right,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
         BitBlt(target,0,0,r.right,r.bottom,dc,0,0,SRCCOPY);SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);if(msg==WM_PAINT)EndPaint(hwnd,&ps);return 0;
     }
     case WM_NCDESTROY:clear(c);free(c);SetWindowLongPtrW(hwnd,GWLP_USERDATA,0);break;
     }
     return DefWindowProcW(hwnd,msg,wp,lp);
 }
-void choice_register(HINSTANCE instance){WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=instance;wc.lpszClassName=L"MonicaChoice";wc.hCursor=LoadCursor(NULL,IDC_HAND);RegisterClassW(&wc);}
+void choice_register(HINSTANCE instance){WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=instance;wc.lpszClassName=L"CebolaChoice";wc.hCursor=LoadCursor(NULL,IDC_HAND);RegisterClassW(&wc);}

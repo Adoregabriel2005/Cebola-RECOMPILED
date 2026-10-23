@@ -103,7 +103,7 @@ index d615ad8..80f2fa2 100644
  
 +/* Native AOT instruction scheduler. The guest CALL/RET stack lives in RAM,
 + * never on the host C call stack. No interpreter is used on this path. */
-+extern void monica_step(void);
++extern void cebola_step(void);
 +void glue_run_step(void){
 +    g_running=true;
 +    if(setjmp(g_quit_env)==0){
@@ -112,7 +112,7 @@ index d615ad8..80f2fa2 100644
 +            if(g_z80.halted){
 +                g_z80.cyc+=4;g_z80.r=(uint8_t)((g_z80.r&0x80)|((g_z80.r+1)&0x7f));
 +            }else{
-+                g_dbg_pc=g_z80.pc;monica_step();g_frame_ic++;
++                g_dbg_pc=g_z80.pc;cebola_step();g_frame_ic++;
 +            }
 +            if(g_z80.ei_block){g_z80.ei_block=0;}
 +            else if(g_console_nmi_pending){
@@ -157,31 +157,31 @@ index d615ad8..80f2fa2 100644
 +#include "replay.h"
 +bool glue_load_rom_wide(const wchar_t *path){
 +    FILE *f=_wfopen(path,L"rb");if(!f)return false;
-+    uint8_t *bytes=malloc(MONICA_ROM_SIZE);
++    uint8_t *bytes=malloc(CEBOLA_ROM_SIZE);
 +    if(!bytes){fclose(f);return false;}
-+    size_t n=fread(bytes,1,MONICA_ROM_SIZE,f);int extra=fgetc(f);fclose(f);
-+    if(n!=MONICA_ROM_SIZE || extra!=EOF || monica_crc32(bytes,n)!=MONICA_ROM_CRC){free(bytes);return false;}
++    size_t n=fread(bytes,1,CEBOLA_ROM_SIZE,f);int extra=fgetc(f);fclose(f);
++    if(n!=CEBOLA_ROM_SIZE || extra!=EOF || cebola_crc32(bytes,n)!=CEBOLA_ROM_CRC){free(bytes);return false;}
 +    free(g_rom);g_rom=bytes;g_rom_size=n;return true;
 +}
 +uint64_t glue_state_hash(void){
 +    uint64_t h = UINT64_C(14695981039346656037);
-+    h=monica_hash(&g_z80,sizeof g_z80,h);
-+    h=monica_hash(g_ram,sizeof g_ram,h);
-+    h=monica_hash(g_bank,sizeof g_bank,h);
-+    h=monica_hash(&g_vdp,sizeof g_vdp,h);
-+    h=monica_hash(&g_next_line_cyc,sizeof g_next_line_cyc,h);
-+    h=monica_hash(&g_sync_deadline,sizeof g_sync_deadline,h);
-+    h=monica_hash(&g_frame,sizeof g_frame,h);
-+    h=monica_hash(&g_step_irq_pending,sizeof g_step_irq_pending,h);
-+    h=monica_hash(&g_io_control,sizeof g_io_control,h);
++    h=cebola_hash(&g_z80,sizeof g_z80,h);
++    h=cebola_hash(g_ram,sizeof g_ram,h);
++    h=cebola_hash(g_bank,sizeof g_bank,h);
++    h=cebola_hash(&g_vdp,sizeof g_vdp,h);
++    h=cebola_hash(&g_next_line_cyc,sizeof g_next_line_cyc,h);
++    h=cebola_hash(&g_sync_deadline,sizeof g_sync_deadline,h);
++    h=cebola_hash(&g_frame,sizeof g_frame,h);
++    h=cebola_hash(&g_step_irq_pending,sizeof g_step_irq_pending,h);
++    h=cebola_hash(&g_io_control,sizeof g_io_control,h);
 +    /* Preserve old save digests when the new console button is idle. */
-+    if(g_console_nmi_pending)h=monica_hash(&g_console_nmi_pending,sizeof g_console_nmi_pending,h);
-+    if(g_pad1&SMS_PAD_START)h=monica_hash(&g_pad1,sizeof g_pad1,h);
-+    h=monica_hash(&g_psg_cyc,sizeof g_psg_cyc,h);
++    if(g_console_nmi_pending)h=cebola_hash(&g_console_nmi_pending,sizeof g_console_nmi_pending,h);
++    if(g_pad1&SMS_PAD_START)h=cebola_hash(&g_pad1,sizeof g_pad1,h);
++    h=cebola_hash(&g_psg_cyc,sizeof g_psg_cyc,h);
 +    FILE *f=tmpfile();
 +    if(!f || !psg_save_state(f)){ if(f) fclose(f); return 0; }
 +    rewind(f); uint8_t buf[256]; size_t n;
-+    while((n=fread(buf,1,sizeof buf,f))>0) h=monica_hash(buf,n,h);
++    while((n=fread(buf,1,sizeof buf,f))>0) h=cebola_hash(buf,n,h);
 +    fclose(f); return h;
 +}
 diff --git a/runner/glue.h b/runner/glue.h

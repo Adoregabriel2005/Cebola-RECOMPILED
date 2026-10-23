@@ -10,7 +10,7 @@ int wmain(int argc,wchar_t **argv){
     CHECK(argc==2);CHECK(input_init());
     choice_register(GetModuleHandleW(NULL));
     HWND host=CreateWindowW(L"STATIC",L"test",WS_OVERLAPPED,0,0,500,200,NULL,NULL,GetModuleHandleW(NULL),NULL);
-    HWND choice=CreateWindowW(L"MonicaChoice",L"",WS_CHILD,0,0,300,32,host,NULL,GetModuleHandleW(NULL),NULL);
+    HWND choice=CreateWindowW(L"CebolaChoice",L"",WS_CHILD,0,0,300,32,host,NULL,GetModuleHandleW(NULL),NULL);
     CHECK(host&&choice);CHECK((GetWindowLongW(choice,GWL_STYLE)&WS_POPUP)==0);
     SendMessageW(choice,CB_ADDSTRING,0,(LPARAM)L"Janela");SendMessageW(choice,CB_ADDSTRING,0,(LPARAM)L"Tela cheia");
     SendMessageW(choice,CB_SETCURSEL,0,0);SendMessageW(choice,WM_KEYDOWN,VK_RIGHT,0);CHECK(SendMessageW(choice,CB_GETCURSEL,0,0)==1);
@@ -18,8 +18,8 @@ int wmain(int argc,wchar_t **argv){
     SendMessageW(choice,WM_KEYDOWN,VK_LEFT,0);wchar_t selected[64];SendMessageW(choice,CB_GETLBTEXT,1,(LPARAM)selected);CHECK(!wcscmp(selected,L"Tela cheia"));
     SendMessageW(choice,CB_RESETCONTENT,0,0);CHECK(SendMessageW(choice,CB_GETCOUNT,0,0)==0&&SendMessageW(choice,CB_GETCURSEL,0,0)==-1);
     DestroyWindow(host);puts("PASS inline selector: keyboard changes, wrap, Unicode values, reset, no popup style");
-    SDL_VirtualJoystickDesc desc;SDL_INIT_INTERFACE(&desc);desc.type=SDL_JOYSTICK_TYPE_UNKNOWN;desc.naxes=2;desc.nbuttons=12;desc.nhats=1;desc.vendor_id=0xCAFE;desc.product_id=1;desc.name="Monica test A";
-    SDL_JoystickID a=SDL_AttachVirtualJoystick(&desc);CHECK(a!=0);desc.product_id=2;desc.name="Monica test B";SDL_JoystickID b=SDL_AttachVirtualJoystick(&desc);CHECK(b!=0);
+    SDL_VirtualJoystickDesc desc;SDL_INIT_INTERFACE(&desc);desc.type=SDL_JOYSTICK_TYPE_UNKNOWN;desc.naxes=2;desc.nbuttons=12;desc.nhats=1;desc.vendor_id=0xCAFE;desc.product_id=1;desc.name="Cebola test A";
+    SDL_JoystickID a=SDL_AttachVirtualJoystick(&desc);CHECK(a!=0);desc.product_id=2;desc.name="Cebola test B";SDL_JoystickID b=SDL_AttachVirtualJoystick(&desc);CHECK(b!=0);
     SDL_Joystick *ja=SDL_OpenJoystick(a),*jb=SDL_OpenJoystick(b);CHECK(ja&&jb);select_virtual(b);
     CHECK(input_read().connected);CHECK(wcsstr(input_name(),L"test B")!=NULL);
     CHECK(SDL_SetJoystickVirtualButton(ja,0,true));input_update();CHECK(!(input_read().pad&INPUT_A));

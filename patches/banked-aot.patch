@@ -18,18 +18,18 @@ index 236670a..cc618bc 100644
 +        if(bank>=16 || pc>=0xC000){fprintf(stderr,"bad bank/PC trace entry\n");exit(1);}
 +        seen[bank][pc]=1;
 +    }fclose(t);
-+    char path[600];snprintf(path,sizeof path,"%s/monica_step.h",out_dir);
++    char path[600];snprintf(path,sizeof path,"%s/cebola_step.h",out_dir);
 +    FILE *h=fopen(path,"w");if(!h)exit(1);
-+    fprintf(h,"#pragma once\n#include \"sms_runtime.h\"\n#include \"z80_ops.h\"\nvoid monica_step(void);\n");
-+    for(unsigned b=0;b<16;b++)fprintf(h,"void monica_bank%02u(void);\n",b);
++    fprintf(h,"#pragma once\n#include \"sms_runtime.h\"\n#include \"z80_ops.h\"\nvoid cebola_step(void);\n");
++    for(unsigned b=0;b<16;b++)fprintf(h,"void cebola_bank%02u(void);\n",b);
 +    fclose(h);
-+    snprintf(path,sizeof path,"%s/monica_step.c",out_dir);FILE *d=fopen(path,"w");if(!d)exit(1);
-+    fprintf(d,"#include \"monica_step.h\"\nvoid monica_step(void){ switch(g_z80.pc < 0x400 ? 0 : sms_slot_bank(g_z80.pc)){\n");
-+    for(unsigned b=0;b<16;b++)fprintf(d,"case %u: monica_bank%02u();return;\n",b,b);
++    snprintf(path,sizeof path,"%s/cebola_step.c",out_dir);FILE *d=fopen(path,"w");if(!d)exit(1);
++    fprintf(d,"#include \"cebola_step.h\"\nvoid cebola_step(void){ switch(g_z80.pc < 0x400 ? 0 : sms_slot_bank(g_z80.pc)){\n");
++    for(unsigned b=0;b<16;b++)fprintf(d,"case %u: cebola_bank%02u();return;\n",b,b);
 +    fprintf(d,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(d);
 +    for(unsigned b=0;b<16;b++){
-+        snprintf(path,sizeof path,"%s/monica_bank%02u.c",out_dir,b);FILE *o=fopen(path,"w");if(!o)exit(1);
-+        fprintf(o,"#include \"monica_step.h\"\n#if defined(_MSC_VER)\n#define AOT_NOINLINE __declspec(noinline)\n#else\n#define AOT_NOINLINE __attribute__((noinline))\n#endif\n");
++        snprintf(path,sizeof path,"%s/cebola_bank%02u.c",out_dir,b);FILE *o=fopen(path,"w");if(!o)exit(1);
++        fprintf(o,"#include \"cebola_step.h\"\n#if defined(_MSC_VER)\n#define AOT_NOINLINE __declspec(noinline)\n#else\n#define AOT_NOINLINE __attribute__((noinline))\n#endif\n");
 +        unsigned char chunks[48]={0};
 +        /* Bound each native switch to 1 KiB of guest addresses. Very large
 +           conservative switches otherwise make optimizer time grow sharply. */
@@ -48,7 +48,7 @@ index 236670a..cc618bc 100644
 +            }
 +            fprintf(o,"default:sms_dispatch_miss(s->pc);return;} }\n");
 +        }
-+        fprintf(o,"void monica_bank%02u(void){ switch(g_z80.pc >> 10){\n",b);
++        fprintf(o,"void cebola_bank%02u(void){ switch(g_z80.pc >> 10){\n",b);
 +        for(unsigned chunk=0;chunk<48;chunk++)if(chunks[chunk])fprintf(o,"case %u: bank%02u_chunk%02u();return;\n",chunk,b,chunk);
 +        fprintf(o,"default:sms_dispatch_miss(g_z80.pc);return;} }\n");fclose(o);
 +    }

@@ -1,4 +1,14 @@
-# Validação da versão 0.5
+# Validação
+
+## Identidade Cebola - RECOMPILED — 0.10.1
+
+Em 23/10/2026, os patches foram aplicados sobre a revisão limpa fixada do smsggrecomp. O recompilador gerou novamente as 200.067 entradas AOT com o prefixo `cebola`, e todos os alvos foram compilados.
+
+A suíte `test-local.ps1` passou: saves em processos diferentes, abertura, seis percursos até 18.500 quadros, comparação de imagem/áudio com a referência, 12 roteiros de botões, Pause, rejeição de save corrompido, controles, configurações e navegação. Após a atualização visual final, os testes de controles/configurações e navegação passaram novamente: 24 trocas de aba, 28 trocas de página, isolamento e retorno do menu.
+
+As artes anteriores foram retiradas da árvore atual. A interface funciona sem arquivos dessas artes. A única imagem incluída é a logo fornecida para o rodapé do README, preservada byte a byte: SHA256 `8d93108033b58bb2099fe18250137ec7d4aeff9463618f1b0a81505b3b4e827d`.
+
+A mudança de identidade não comprova cobertura integral do jogo. Os limites dos testes anteriores e da referência compartilhada continuam válidos.
 
 ## Testes automatizados aprovados
 

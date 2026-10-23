@@ -1,9 +1,9 @@
 param(
-    [string]$Version = '0.10.0-preview.1',
+    [string]$Version = '0.10.1',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'release-dist')
 )
 $ErrorActionPreference='Stop'
-if($Version -notmatch '^\d+\.\d+\.\d+-preview\.\d+$'){throw 'Este empacotador publica somente versões preview, sem afirmar estabilidade.'}
+if($Version -notmatch '^\d+\.\d+\.\d+(-preview\.\d+)?$'){throw 'Versão inválida.'}
 & git -C $PSScriptRoot rev-parse --show-toplevel *> $null
 if($LASTEXITCODE){throw 'Execute a partir de um checkout Git do projeto.'}
 $repoRoot=(& git -C $PSScriptRoot rev-parse --show-toplevel).Trim()
@@ -19,13 +19,13 @@ foreach($name in $tracked){
     }
 }
 $destination=[IO.Path]::GetFullPath($OutputDirectory)
-$packageName="MonicaRecomp-v$Version-fontes.zip"
+$packageName="CebolaRecompiled-v$Version-fontes.zip"
 $package=Join-Path $destination $packageName
 $manifestPath=Join-Path $destination 'release-manifest.json'
 $hashPath=Join-Path $destination 'SHA256SUMS.txt'
 foreach($file in @($package,$manifestPath,$hashPath)){if(Test-Path -LiteralPath $file){throw "O arquivo já existe e não será sobrescrito: $file"}}
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
-& git -C $PSScriptRoot archive --format=zip --prefix=monica-recomp/ "--output=$package" HEAD
+& git -C $PSScriptRoot archive --format=zip --prefix=cebola-recomp/ "--output=$package" HEAD
 if($LASTEXITCODE){throw 'Falha ao gerar o arquivo do commit.'}
 $packageHash=(Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifest=[ordered]@{
@@ -34,7 +34,7 @@ $manifest=[ordered]@{
     package=$packageName
     package_sha256=$packageHash
     package_bytes=(Get-Item -LiteralPath $package).Length
-    kind='source-preview'
+    kind='source'
     executable_included=$false
     rom_included=$false
     target='Windows x64; local build required'

@@ -12,7 +12,7 @@
 
 - `src/app.c`: aplicativo Win32, menus, sessão e apresentação.
 - `src/theme.c`: cenário, tipografia e botões do menu.
-- `src/preferences.c`: controles, vídeo, áudio e história.
+- `src/preferences.c`: controles, vídeo, áudio e informações do projeto.
 - `src/input.c`: gamepads e joysticks via SDL3.
 - `src/replay.c`: formato de save por reconstrução e integridade.
 - `patches/banked-aot.patch`: emissor C por instrução/banco e opção da ferramenta.
@@ -20,5 +20,5 @@
 - `instruction-seeds.txt`: endereços observados, sem bytes da ROM.
 - `instruction-trace.txt`: candidatos conservadores de entrada AOT, incluindo offsets possivelmente de dados.
 - `tools/aot_reachability.c`: fechamento de ramos, expansão de bancos e entradas das janelas observadas.
-- `src/history.h` e `docs/HISTORIA.md`: capítulos históricos e proveniência.
+- `src/history.h`: guia do projeto, funcionamento e créditos.
 - `generated/`, `work/`, `local-bin/`: conteúdo local ignorado pelo Git.

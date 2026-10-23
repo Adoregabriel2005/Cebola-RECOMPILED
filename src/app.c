@@ -174,15 +174,15 @@ static void paint(HDC dc,RECT client){
     paint_content(present_dc,client);BitBlt(dc,0,0,w,h,present_dc,0,0,SRCCOPY);
 }
 static int validate_rom(const wchar_t *path){
-    FILE *f=_wfopen(path,L"rb");if(!f)return 0;uint8_t *data=malloc(MONICA_ROM_SIZE);if(!data){fclose(f);return 0;}
-    size_t n=fread(data,1,MONICA_ROM_SIZE,f);int extra=fgetc(f);
-    int ok=n==MONICA_ROM_SIZE && extra==EOF && monica_crc32(data,n)==MONICA_ROM_CRC;free(data);fclose(f);return ok;
+    FILE *f=_wfopen(path,L"rb");if(!f)return 0;uint8_t *data=malloc(CEBOLA_ROM_SIZE);if(!data){fclose(f);return 0;}
+    size_t n=fread(data,1,CEBOLA_ROM_SIZE,f);int extra=fgetc(f);
+    int ok=n==CEBOLA_ROM_SIZE && extra==EOF && cebola_crc32(data,n)==CEBOLA_ROM_CRC;free(data);fclose(f);return ok;
 }
 static int choose_rom(void){
     wchar_t path[32768]=L"";OPENFILENAMEW of={sizeof of};of.hwndOwner=window;of.lpstrFilter=L"ROM do Master System (*.sms)\0*.sms\0\0";
     of.lpstrFile=path;of.nMaxFile=32768;of.Flags=OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;
     if(!GetOpenFileNameW(&of))return 0;
-    if(!validate_rom(path)){message(L"ROM incompatível. Esta versão requer Mônica no Castelo do Dragão (Brazil), 256 KiB, CRC32 01D67C0B.");return 0;}
+    if(!validate_rom(path)){message(L"ROM incompatível. Esta versão requer o arquivo compatível, 256 KiB, CRC32 01D67C0B.");return 0;}
     wcscpy(rom_path,path);rom_ready=1;save_settings();navigation();InvalidateRect(window,NULL,TRUE);return 1;
 }
 /* Local input-only reproduction for an uncovered native path. No ROM or
@@ -225,8 +225,8 @@ static void toggle_fullscreen(void){
 }
 static void navigation(void){
     if(!window)return;
-    const wchar_t *home[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o jogo",L"Sair"};
-    const wchar_t *pause_labels[]={L"Continuar aventura",L"Salvar progresso",L"Carregar progresso",L"Controles",L"Configurações",L"Sobre o jogo",L"Sair"};
+    const wchar_t *home[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o projeto",L"Sair"};
+    const wchar_t *pause_labels[]={L"Continuar aventura",L"Salvar progresso",L"Carregar progresso",L"Controles",L"Configurações",L"Sobre o projeto",L"Sair"};
     const int home_ids[]={PLAY,LOAD,SETTINGS,OPTIONS,OPEN_ROM,ABOUT,EXIT_APP};
     const int pause_ids[]={PAUSE,SAVE,LOAD,SETTINGS,OPTIONS,ABOUT,EXIT_APP};
     for(int i=0;i<MENU_COUNT;i++)if(controls[i]){
@@ -327,7 +327,7 @@ static int frame(const uint32_t *fb,int w,int h){
     memcpy(framebuffer,fb,sizeof framebuffer);
     if(movie.target){
         if(glue_state_hash()!=movie.state_hash){message(L"A reconstrução divergiu do save. O carregamento foi interrompido; o arquivo foi preservado.");quitting=1;return 1;}
-        movie.target=0;audio_reset();set_paused(1);SetWindowTextW(window,L"Mônica no Castelo do Dragão");
+        movie.target=0;audio_reset();set_paused(1);SetWindowTextW(window,L"Cebola - RECOMPILED");
     }
     InvalidateRect(window,NULL,FALSE);UpdateWindow(window);pump();
     while(paused && !quitting && !restart_requested){pump();Sleep(10);}
@@ -348,7 +348,7 @@ static void test_navigation(void){
     int isolated=1,restored=1,embedded=1,pages=0,history_switches=0;
     for(int cycle=0;cycle<4;cycle++){
         running=cycle&1;paused=running;settings(cycle%4);
-        HWND page=FindWindowExW(window,NULL,L"MonicaPreferences",NULL);
+        HWND page=FindWindowExW(window,NULL,L"CebolaPreferences",NULL);
         if(!page){isolated=embedded=0;break;}
         embedded &= !!(GetWindowLongW(page,GWL_STYLE)&WS_CHILD);
         embedded &= !(GetWindowLongW(page,GWL_STYLE)&WS_CAPTION);
@@ -391,7 +391,7 @@ static void test_audio(void){
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show){
     (void)previous;(void)command;wchar_t data[32768];if(!GetEnvironmentVariableW(L"LOCALAPPDATA",data,32768))GetTempPathW(32768,data);
-    swprintf(root,32768,L"%ls\\MonicaRecompPrototype",data);
+    swprintf(root,32768,L"%ls\\CebolaRecompiled",data);
     int argc;wchar_t **argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     for(int i=1;i<argc;i++)if(!wcscmp(argv[i],L"--data-dir")&&i+1<argc)wcsncpy(root,argv[++i],32767);
     CreateDirectoryW(root,NULL);swprintf(ini,32768,L"%ls\\settings.ini",root);
@@ -405,18 +405,18 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,PWSTR command,int show
         else if(!wcscmp(argv[i],L"--selftest-audio")&&i+1<argc)wcsncpy(audio_test_path,argv[++i],32767);
     }LocalFree(argv);rom_ready=validate_rom(rom_path);QueryPerformanceFrequency(&frequency);
     background=CreateSolidBrush(RGB(12,31,26));font=CreateFontW(-18,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");title_font=CreateFontW(-36,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
-    WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"MonicaRecomp";wc.hCursor=LoadCursor(NULL,IDC_ARROW);wc.hIcon=LoadIconW(instance,MAKEINTRESOURCEW(101));RegisterClassW(&wc);
+    WNDCLASSW wc={0};wc.lpfnWndProc=window_proc;wc.hInstance=instance;wc.lpszClassName=L"CebolaRecompiled";wc.hCursor=LoadCursor(NULL,IDC_ARROW);wc.hIcon=LoadIconW(NULL,IDI_APPLICATION);RegisterClassW(&wc);
     
     HMENU menu=NULL;
     int widths[]={960,1280,1600,1920,2560,3840};int an=cfg.aspect==1?5:cfg.aspect==2?16:4,ad=cfg.aspect==1?4:cfg.aspect==2?9:3;RECT wr={0,0,widths[resolution],MulDiv(widths[resolution],ad,an)};AdjustWindowRect(&wr,WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,FALSE);
-    window=CreateWindowW(L"MonicaRecomp",L"Mônica no Castelo do Dragão",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,wr.right-wr.left,wr.bottom-wr.top,0,menu,instance,0);
-    const wchar_t *names[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o jogo",L"Sair"};int ids[]={PLAY,LOAD,SETTINGS,OPTIONS,OPEN_ROM,ABOUT,EXIT_APP};
+    window=CreateWindowW(L"CebolaRecompiled",L"Cebola - RECOMPILED",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,wr.right-wr.left,wr.bottom-wr.top,0,menu,instance,0);
+    const wchar_t *names[]={L"Jogar",L"Continuar",L"Controles",L"Configurações",L"Selecionar ROM",L"Sobre o projeto",L"Sair"};int ids[]={PLAY,LOAD,SETTINGS,OPTIONS,OPEN_ROM,ABOUT,EXIT_APP};
     for(int i=0;i<MENU_COUNT;i++){
         controls[i]=CreateWindowW(L"BUTTON",names[i],WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,10,10,window,(HMENU)(INT_PTR)ids[i],instance,0);
         WNDPROC old=(WNDPROC)SetWindowLongPtrW(controls[i],GWLP_WNDPROC,(LONG_PTR)menu_button_proc);if(!original_button_proc)original_button_proc=old;
     }
     wchar_t art_path[32768];GetModuleFileNameW(NULL,art_path,32768);wchar_t *last=wcsrchr(art_path,L'\\');if(last)last[1]=0;
-    wcscpy(asset_dir,art_path);wcscat(asset_dir,L"assets");wcscat(art_path,L"assets\\menu-forest.png");theme_init(art_path);navigation();SetTimer(window,1,16,NULL);
+    wcscpy(asset_dir,art_path);wcscat(asset_dir,L"assets");wcscat(art_path,L"assets\\underplay.png");theme_init(art_path);navigation();SetTimer(window,1,16,NULL);
     input_init();input_select(cfg.device);input_configure(cfg.buttons);input_set_deadzone(cfg.deadzone);input_update();
     SetCurrentDirectoryW(root);wchar_t log[32768];swprintf(log,32768,L"%ls\\runtime.log",root);_wfreopen(log,L"w",stderr);
     if(audio_test_path[0]){test_audio();}

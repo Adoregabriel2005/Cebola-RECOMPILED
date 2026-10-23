@@ -33,7 +33,7 @@ if($LASTEXITCODE){throw 'Falha na configuração do aplicativo.'}
 & cmake --build $appBuild -j 4
 if($LASTEXITCODE){throw 'Falha na compilação. Feche a mesma versão do aplicativo se estiver em uso.'}
 Copy-Item -LiteralPath (Join-Path $work 'deps/SDL3/LICENSE.txt') -Destination (Join-Path $destination 'LICENSE-SDL.txt') -Force
-Write-Host "Protótipo local: $(Join-Path $destination 'MonicaRecomp-v0.10.exe')"
+Write-Host "Protótipo local: $(Join-Path $destination 'CebolaRecompiled-v0.10.exe')"
 Write-Host 'O código gerado e os executáveis são locais. Não os publique com a ROM.'
 
 } finally { Pop-Location }

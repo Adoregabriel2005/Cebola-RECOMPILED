@@ -20,9 +20,7 @@ static HWND dialog,owner,tabs,items[96],key_buttons[7],pad_combos[8],device_comb
 static HWND video_controls[8],audio_controls[6];
 static Preferences pending,original,*target;
 static InputDevice devices[32];static int device_count,item_count,current_tab,capture_key=-1,capture_pad=-1,release_pad;
-static HBRUSH paper;static HFONT normal,heading,caption,widget_font;static wchar_t asset_directory[32768];
-typedef struct{uint32_t *pixels;UINT w,h;BITMAPINFO info;} Picture;
-static Picture cover,advert,forest;
+static HBRUSH paper;static HFONT normal,heading,caption,widget_font;
 static wchar_t feedback[200];
 static const wchar_t *actions[]={L"Cima",L"Baixo",L"Esquerda",L"Direita",L"Botão 1",L"Botão 2",L"Pause (console)"};
 static const wchar_t *pad_actions[]={L"Botão 1",L"Botão 2",L"Pause console",L"Menu",L"Cima",L"Baixo",L"Esquerda",L"Direita"};
@@ -92,7 +90,7 @@ static void position_child(HWND item){Layout *l=(Layout*)GetPropW(item,L"layout"
 }
 static HWND child(const wchar_t *type,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id,int page){
     if(!wcscmp(type,L"BUTTON"))style=(style&~15)|BS_OWNERDRAW;
-    if(!wcscmp(type,L"COMBOBOX")){type=L"MonicaChoice";style=WS_TABSTOP;}
+    if(!wcscmp(type,L"COMBOBOX")){type=L"CebolaChoice";style=WS_TABSTOP;}
     HWND item=CreateWindowW(type,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,dialog,(HMENU)(INT_PTR)id,GetModuleHandleW(NULL),NULL);
     if(!wcscmp(type,L"BUTTON"))SetWindowSubclass(item,hover_button,1,0);
     Layout *l=malloc(sizeof *l);*l=(Layout){x,y,w,h,page};SetPropW(item,L"layout",l);SendMessageW(item,WM_SETFONT,(WPARAM)widget_font,FALSE);SetWindowTheme(item,L"",L"");position_child(item);return item;
@@ -181,70 +179,57 @@ static void draw_pad(HDC dc){
     draw_text(dc,798,133,140,30,L"CONTROL PAD",caption,RGB(157,167,177));
     rounded(dc,683,147,100,100,RGB(59,62,66),RGB(14,15,17));
     RECT v={718,157,748,237},h={693,187,773,217};HBRUSH b=CreateSolidBrush(RGB(8,9,11));FillRect(dc,&v,b);FillRect(dc,&h,b);DeleteObject(b);
-    rounded(dc,811,184,58,54,state.pad&INPUT_A?RGB(160,31,44):RGB(7,8,10),RGB(77,80,84));rounded(dc,886,184,58,54,state.pad&INPUT_B?RGB(160,31,44):RGB(7,8,10),RGB(77,80,84));
+    rounded(dc,811,184,58,54,state.pad&INPUT_A?RGB(13,99,153):RGB(7,8,10),RGB(77,80,84));rounded(dc,886,184,58,54,state.pad&INPUT_B?RGB(13,99,153):RGB(7,8,10),RGB(77,80,84));
     draw_text(dc,830,151,50,26,L"1",caption,RGB(243,243,242));draw_text(dc,905,151,50,26,L"2",caption,RGB(243,243,242));
     wchar_t one[80],two[80],summary[220];binding_label(0,one);binding_label(1,two);swprintf(summary,220,L"1: %ls   ·   2: %ls",one,two);
-    draw_text(dc,600,279,420,24,summary,caption,RGB(205,224,207));
-    draw_text(dc,32,153,600,36,input_name(),caption,RGB(180,217,159));
+    draw_text(dc,600,279,420,24,summary,caption,RGB(205,228,245));
+    draw_text(dc,32,153,600,36,input_name(),caption,RGB(164,213,238));
 }
-static void picture_load(Picture *p,const wchar_t *name){
-    wchar_t path[32768];swprintf(path,32768,L"%ls\\%ls",asset_directory,name);IWICImagingFactory *factory=NULL;IWICBitmapDecoder *dec=NULL;IWICBitmapFrameDecode *frame=NULL;IWICFormatConverter *convert=NULL;
-    HRESULT hr=CoCreateInstance(&CLSID_WICImagingFactory,NULL,CLSCTX_INPROC_SERVER,&IID_IWICImagingFactory,(void**)&factory);
-    if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateDecoderFromFilename(factory,path,NULL,GENERIC_READ,WICDecodeMetadataCacheOnLoad,&dec);
-    if(SUCCEEDED(hr))hr=IWICBitmapDecoder_GetFrame(dec,0,&frame);if(SUCCEEDED(hr))hr=IWICImagingFactory_CreateFormatConverter(factory,&convert);
-    if(SUCCEEDED(hr))hr=IWICFormatConverter_Initialize(convert,(IWICBitmapSource*)frame,&GUID_WICPixelFormat32bppBGR,WICBitmapDitherTypeNone,NULL,0,WICBitmapPaletteTypeCustom);
-    if(SUCCEEDED(hr))hr=IWICFormatConverter_GetSize(convert,&p->w,&p->h);
-    if(SUCCEEDED(hr)&&p->w<=4096&&p->h<=4096){p->pixels=malloc((size_t)p->w*p->h*4);if(p->pixels)IWICFormatConverter_CopyPixels(convert,NULL,p->w*4,p->w*p->h*4,(BYTE*)p->pixels);}
-    if(convert)IWICFormatConverter_Release(convert);if(frame)IWICBitmapFrameDecode_Release(frame);if(dec)IWICBitmapDecoder_Release(dec);if(factory)IWICImagingFactory_Release(factory);
-    p->info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);p->info.bmiHeader.biWidth=p->w;p->info.bmiHeader.biHeight=-(LONG)p->h;p->info.bmiHeader.biPlanes=1;p->info.bmiHeader.biBitCount=32;
-}
-static void picture_draw(HDC dc,Picture *p,int x,int y,int w,int h){if(!p->pixels)return;double k=(double)w/p->w;if(p->h*k>h)k=(double)h/p->h;SetStretchBltMode(dc,HALFTONE);StretchDIBits(dc,x,y,(int)(p->w*k),(int)(p->h*k),0,0,p->w,p->h,p->pixels,&p->info,DIB_RGB_COLORS,SRCCOPY);}
 static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     if(msg==WM_ERASEBKGND)return 1;
-    if(msg==WM_CTLCOLORSTATIC||msg==WM_CTLCOLORBTN||msg==WM_CTLCOLORLISTBOX||msg==WM_CTLCOLOREDIT){SetTextColor((HDC)wp,RGB(249,236,200));SetBkColor((HDC)wp,RGB(12,31,26));return (LRESULT)paper;}
+    if(msg==WM_CTLCOLORSTATIC||msg==WM_CTLCOLORBTN||msg==WM_CTLCOLORLISTBOX||msg==WM_CTLCOLOREDIT){SetTextColor((HDC)wp,RGB(235,247,255));SetBkColor((HDC)wp,RGB(7,16,33));return (LRESULT)paper;}
     if(msg==WM_MEASUREITEM){((MEASUREITEMSTRUCT*)lp)->itemHeight=28;return TRUE;}
     if(msg==WM_DRAWITEM){DRAWITEMSTRUCT *d=(DRAWITEMSTRUCT*)lp;RECT r={0,0,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top};HDC dc=CreateCompatibleDC(d->hDC);HBITMAP bitmap=CreateCompatibleBitmap(d->hDC,r.right,r.bottom);HGDIOBJ old=SelectObject(dc,bitmap);
         int active=(d->itemState&(ODS_SELECTED|ODS_FOCUS))!=0;int hover=GetPropW(d->hwndItem,L"hover")!=NULL;int tab=(int)d->CtlID-600;if(tab>=0&&tab<6)active=tab==current_tab;
-        HBRUSH brush=CreateSolidBrush(active?RGB(146,34,43):hover?RGB(37,67,49):RGB(22,51,42));FillRect(dc,&r,brush);DeleteObject(brush);
-        HPEN pen=CreatePen(PS_SOLID,1,active?RGB(255,205,91):RGB(72,101,77));HGDIOBJ op=SelectObject(dc,pen),ob=SelectObject(dc,GetStockObject(NULL_BRUSH));RoundRect(dc,0,0,r.right-1,r.bottom-1,8,8);SelectObject(dc,op);SelectObject(dc,ob);DeleteObject(pen);
+        HBRUSH brush=CreateSolidBrush(active?RGB(13,79,131):hover?RGB(18,66,103):RGB(13,32,54));FillRect(dc,&r,brush);DeleteObject(brush);
+        HPEN pen=CreatePen(PS_SOLID,1,active?RGB(30,195,238):RGB(58,103,135));HGDIOBJ op=SelectObject(dc,pen),ob=SelectObject(dc,GetStockObject(NULL_BRUSH));RoundRect(dc,0,0,r.right-1,r.bottom-1,8,8);SelectObject(dc,op);SelectObject(dc,ob);DeleteObject(pen);
         wchar_t text[512]=L"";if(d->CtlType==ODT_COMBOBOX){if(d->itemID!=(UINT)-1)SendMessageW(d->hwndItem,CB_GETLBTEXT,d->itemID,(LPARAM)text);}else GetWindowTextW(d->hwndItem,text,512);
         if(d->CtlID==42)swprintf(text,512,pending.muted?L"[✓]  Áudio silenciado":L"[  ]  Silenciar áudio");
-        SelectObject(dc,widget_font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,active?RGB(255,221,145):RGB(249,236,207));r.left+=12;r.right-=10;DrawTextW(dc,text,-1,&r,DT_SINGLELINE|DT_VCENTER|(d->CtlType==ODT_BUTTON?DT_CENTER:DT_LEFT));
+        SelectObject(dc,widget_font);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,active?RGB(99,217,249):RGB(235,247,255));r.left+=12;r.right-=10;DrawTextW(dc,text,-1,&r,DT_SINGLELINE|DT_VCENTER|(d->CtlType==ODT_BUTTON?DT_CENTER:DT_LEFT));
         BitBlt(d->hDC,d->rcItem.left,d->rcItem.top,d->rcItem.right-d->rcItem.left,d->rcItem.bottom-d->rcItem.top,dc,0,0,SRCCOPY);SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);return TRUE;
     }
     if(msg==WM_PAINT||msg==WM_PRINTCLIENT){PAINTSTRUCT ps;HDC screen=msg==WM_PAINT?BeginPaint(hwnd,&ps):(HDC)wp;RECT r;GetClientRect(hwnd,&r);HDC dc=CreateCompatibleDC(screen);HBITMAP bitmap=CreateCompatibleBitmap(screen,r.right,r.bottom);HGDIOBJ old=SelectObject(dc,bitmap);FillRect(dc,&r,paper);
         SetMapMode(dc,MM_ANISOTROPIC);SetWindowExtEx(dc,1060,700,NULL);SetViewportExtEx(dc,(int)(1060*ui_scale),(int)(700*ui_scale),NULL);SetViewportOrgEx(dc,ui_x,ui_y,NULL);
-        picture_draw(dc,&forest,0,0,1060,700);
-        rounded(dc,14,72,1032,554,RGB(12,31,26),RGB(74,100,72));
-        draw_text(dc,32,646,530,36,feedback[0]?feedback:L"← → ajustar   ·   Tab navegar   ·   Esc voltar",caption,RGB(190,211,165));
+        rounded(dc,14,72,1032,554,RGB(7,16,33),RGB(58,103,135));
+        draw_text(dc,32,646,530,36,feedback[0]?feedback:L"← → ajustar   ·   Tab navegar   ·   Esc voltar",caption,RGB(173,210,232));
         double t=(GetTickCount()-page_started)/220.0;if(t>1)t=1;SetViewportOrgEx(dc,ui_x+(int)(22*(1-t)*(1-t)*ui_scale),ui_y,NULL);
         if(current_tab==0)draw_pad(dc);
         if(current_tab==3){
             const HistoryChapter *c=&history_chapters[history_page];
-            draw_text(dc,32,90,650,40,L"Mônica no Castelo do Dragão",heading,RGB(255,210,103));
-            draw_text(dc,32,140,610,28,c->kicker,caption,RGB(180,217,159));
-            draw_text(dc,32,220,610,330,c->body,history_page==6?caption:normal,RGB(245,236,212));
-            wchar_t count[64];swprintf(count,64,L"ACERVO  ·  %02d / %02d",history_page+1,HISTORY_COUNT);
-            draw_text(dc,715,573,280,30,count,caption,RGB(180,217,159));
-            picture_draw(dc,&cover,686,90,308,218);
-            draw_text(dc,698,317,306,36,L"Capa brasileira · acervo de época",caption,RGB(180,217,159));
-            picture_draw(dc,&advert,731,360,222,200);
+            draw_text(dc,32,90,650,40,L"Cebola - RECOMPILED",heading,RGB(30,195,238));
+            draw_text(dc,32,140,610,28,c->kicker,caption,RGB(164,213,238));
+            draw_text(dc,32,220,610,330,c->body,history_page==6?caption:normal,RGB(235,247,255));
+            wchar_t count[64];swprintf(count,64,L"GUIA  ·  %02d / %02d",history_page+1,HISTORY_COUNT);
+            draw_text(dc,715,573,280,30,count,caption,RGB(164,213,238));
+            draw_text(dc,700,110,300,130,L"CEBOLA\nRECOMPILED",heading,RGB(30,195,238));
+            draw_text(dc,698,317,306,36,L"ROM fornecida pelo jogador",caption,RGB(164,213,238));
+            draw_text(dc,700,370,290,160,L"Código recompilado.\nControles modernos.\nROM externa.",normal,RGB(215,234,247));
         }
         if(current_tab==4){
-            draw_text(dc,40,96,960,42,L"Como este projeto foi feito",heading,RGB(255,210,103));
-            draw_text(dc,40,157,950,75,L"Meu objetivo é aprender como fazer um recompilado: estudar o funcionamento do cartucho e construir uma experiência nativa para Windows, com código e documentação desenvolvidos com auxílio do Codex.",normal,RGB(245,236,212));
-            draw_text(dc,40,247,950,92,L"BASE TÉCNICA  •  smsggrecomp, de mstan. O backend AOT transforma endereços Z80 observados e candidatos estáticos em código C por banco, compilado para x64. A pilha e as interrupções do jogo continuam respeitando o comportamento do Master System.",normal,RGB(245,236,212));
-            draw_text(dc,40,354,950,80,L"RUNTIME  •  VDP e PSG da base reproduzem vídeo e áudio. SDL3 recebe controles modernos; Win32 desenha a interface e WinMM entrega o áudio. O núcleo Z80 superzazu é usado nas ferramentas de referência e comparação.",normal,RGB(245,236,212));
-            draw_text(dc,40,451,950,80,L"SALVAMENTO  •  A sequência de entradas reconstrói a partida e um hash verifica o estado. Não é um snapshot instantâneo. O backend interrompe a execução se encontrar código ainda não coberto; o jogo completo está em validação.",normal,RGB(180,217,159));
-            draw_text(dc,40,548,950,58,L"Arte de menu e ícone: ilustrações de fã geradas com ImageGen. Interface e código: projeto educacional assistido por IA. Sem vínculo com os produtores originais.",caption,RGB(180,217,159));
+            draw_text(dc,40,96,960,42,L"Como este projeto foi feito",heading,RGB(30,195,238));
+            draw_text(dc,40,157,950,75,L"Meu objetivo é aprender como fazer um recompilado: estudar o funcionamento do cartucho e construir uma experiência nativa para Windows, com código e documentação desenvolvidos com auxílio do Codex.",normal,RGB(235,247,255));
+            draw_text(dc,40,247,950,92,L"BASE TÉCNICA  •  smsggrecomp, de mstan. O backend AOT transforma endereços Z80 observados e candidatos estáticos em código C por banco, compilado para x64. A pilha e as interrupções do jogo continuam respeitando o comportamento do Master System.",normal,RGB(235,247,255));
+            draw_text(dc,40,354,950,80,L"RUNTIME  •  VDP e PSG da base reproduzem vídeo e áudio. SDL3 recebe controles modernos; Win32 desenha a interface e WinMM entrega o áudio. O núcleo Z80 superzazu é usado nas ferramentas de referência e comparação.",normal,RGB(235,247,255));
+            draw_text(dc,40,451,950,80,L"SALVAMENTO  •  A sequência de entradas reconstrói a partida e um hash verifica o estado. Não é um snapshot instantâneo. O backend interrompe a execução se encontrar código ainda não coberto; o jogo completo está em validação.",normal,RGB(164,213,238));
+            draw_text(dc,40,548,950,58,L"Interface desenhada por código. Identidade Cebola - RECOMPILED. Logo Underplay fornecida pelo responsável pelo projeto e preservada sem alterações.",caption,RGB(164,213,238));
         }
         if(current_tab==5){
-            draw_text(dc,40,96,960,42,L"Créditos e direitos autorais",heading,RGB(255,210,103));
-            draw_text(dc,40,156,950,82,L"JOGO ORIGINAL EM CARTUCHO  •  Westone: criação de Wonder Boy in Monster Land. Sega: publicação e plataforma Master System. Tec Toy: adaptação e publicação brasileira de Mônica no Castelo do Dragão (1991).",normal,RGB(245,236,212));
-            draw_text(dc,40,253,950,68,L"PERSONAGENS E UNIVERSO  •  Maurício de Sousa e titulares da Turma da Mônica. Marcas, personagens, gráficos, músicas, capas e demais elementos do jogo pertencem aos respectivos titulares.",normal,RGB(245,236,212));
-            draw_text(dc,40,337,950,95,L"Este é um projeto de fã, independente, não oficial e educacional. Não inclui a ROM. Exigir uma ROM do usuário não concede licença nem garante isenção de direitos autorais. A reprodução de materiais de época não transfere seus direitos ao projeto.",normal,RGB(245,236,212));
-            draw_text(dc,40,447,950,85,L"BASES E BIBLIOTECAS  •  smsggrecomp (mstan; sem licença declarada na revisão usada), superzazu/z80 (MIT) e SDL3 (zlib). O repositório fornece patches e scripts; não redistribui o runtime completo da base nem código derivado da ROM.",normal,RGB(180,217,159));
-            draw_text(dc,40,549,950,55,L"Código próprio: MIT. Textos e limites em LICENSE_SCOPE.md e THIRD_PARTY.md. A base sem licença declarada e o material do jogo continuam com permissões pendentes.",caption,RGB(180,217,159));
+            draw_text(dc,40,96,960,42,L"Créditos e direitos autorais",heading,RGB(30,195,238));
+            draw_text(dc,40,156,950,82,L"ROM EXTERNA  •  O jogador fornece o arquivo compatível. O projeto não inclui cartucho, gráficos, músicas ou dados do jogo em seu repositório.",normal,RGB(235,247,255));
+            draw_text(dc,40,253,950,68,L"CONTEÚDO DO JOGO  •  Marcas, personagens, gráficos, músicas e demais elementos carregados da ROM pertencem aos respectivos titulares.",normal,RGB(235,247,255));
+            draw_text(dc,40,337,950,95,L"Este é um projeto de fã, independente, não oficial e educacional. Não inclui a ROM. Exigir uma ROM do usuário não concede licença nem garante isenção de direitos autorais. Os conteúdos da ROM permanecem sob os direitos de seus titulares.",normal,RGB(235,247,255));
+            draw_text(dc,40,447,950,85,L"BASES E BIBLIOTECAS  •  smsggrecomp (mstan; sem licença declarada na revisão usada), superzazu/z80 (MIT) e SDL3 (zlib). O repositório fornece patches e scripts; não redistribui o runtime completo da base nem código derivado da ROM.",normal,RGB(164,213,238));
+            draw_text(dc,40,549,950,55,L"Código próprio: MIT. Textos e limites em LICENSE_SCOPE.md e THIRD_PARTY.md. A base sem licença declarada e o material do jogo continuam com permissões pendentes.",caption,RGB(164,213,238));
         }
         SetMapMode(dc,MM_TEXT);SetViewportOrgEx(dc,0,0,NULL);BitBlt(screen,0,0,r.right,r.bottom,dc,0,0,SRCCOPY);SelectObject(dc,old);DeleteObject(bitmap);DeleteDC(dc);if(msg==WM_PAINT)EndPaint(hwnd,&ps);return 0;
     }
@@ -266,12 +251,12 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
             else if(pressed&(INPUT_UP|INPUT_DOWN))SetFocus(GetNextDlgTabItem(hwnd,focus,!!(pressed&INPUT_UP)));
             else if(focus && (pressed&(INPUT_LEFT|INPUT_RIGHT|INPUT_A))){
                 wchar_t type[32];GetClassNameW(focus,type,32);
-                if(!wcscmp(type,L"MonicaChoice")){int count=(int)SendMessageW(focus,CB_GETCOUNT,0,0);int value=selection(focus);if(count>0){select_at(focus,(value+(pressed&INPUT_LEFT?count-1:1))%count);SendMessageW(hwnd,WM_COMMAND,MAKEWPARAM(GetDlgCtrlID(focus),CBN_SELCHANGE),(LPARAM)focus);InvalidateRect(focus,NULL,FALSE);}}
+                if(!wcscmp(type,L"CebolaChoice")){int count=(int)SendMessageW(focus,CB_GETCOUNT,0,0);int value=selection(focus);if(count>0){select_at(focus,(value+(pressed&INPUT_LEFT?count-1:1))%count);SendMessageW(hwnd,WM_COMMAND,MAKEWPARAM(GetDlgCtrlID(focus),CBN_SELCHANGE),(LPARAM)focus);InvalidateRect(focus,NULL,FALSE);}}
                 else if(pressed&INPUT_A)SendMessageW(focus,BM_CLICK,0,0);
             }
         }
         if(current_tab==0){
-            if(capture_pad>=0){int pressed=input_first_pressed();if(pressed<0)release_pad=1;else if(release_pad){pending.buttons[capture_pad]=pressed;select_at(pad_combos[capture_pad],pressed+1);SetWindowTextW(hwnd,L"Mônica • Configurações");capture_pad=-1;}}
+            if(capture_pad>=0){int pressed=input_first_pressed();if(pressed<0)release_pad=1;else if(release_pad){pending.buttons[capture_pad]=pressed;select_at(pad_combos[capture_pad],pressed+1);SetWindowTextW(hwnd,L"Cebola • Configurações");capture_pad=-1;}}
             RECT r={20,148,1020,310};InvalidateRect(hwnd,&r,FALSE);
         }return 0;
     }
@@ -292,20 +277,20 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
         }
     }
     if(msg==WM_CLOSE){input_select(original.device);input_configure(original.buttons);input_set_deadzone(original.deadzone);closing=1;screen_started=GetTickCount();return 0;}
-    if(msg==WM_DESTROY){for(HWND c=GetWindow(hwnd,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT))free((void*)RemovePropW(c,L"layout"));KillTimer(hwnd,1);dialog=NULL;SendMessageW(owner,PREFS_CLOSED,0,0);InvalidateRect(owner,NULL,FALSE);DeleteObject(widget_font);widget_font=NULL;DeleteObject(normal);DeleteObject(heading);DeleteObject(caption);DeleteObject(paper);free(cover.pixels);free(advert.pixels);free(forest.pixels);memset(&forest,0,sizeof forest);memset(&cover,0,sizeof cover);memset(&advert,0,sizeof advert);return 0;}
+    if(msg==WM_DESTROY){for(HWND c=GetWindow(hwnd,GW_CHILD);c;c=GetWindow(c,GW_HWNDNEXT))free((void*)RemovePropW(c,L"layout"));KillTimer(hwnd,1);dialog=NULL;SendMessageW(owner,PREFS_CLOSED,0,0);InvalidateRect(owner,NULL,FALSE);DeleteObject(widget_font);widget_font=NULL;DeleteObject(normal);DeleteObject(heading);DeleteObject(caption);DeleteObject(paper);return 0;}
     return DefWindowProcW(hwnd,msg,wp,lp);
 }
 void preferences_open(HWND parent,Preferences *p,int tab,const wchar_t *assets){
-    if(dialog){SetFocus(nav[current_tab]);return;}choice_register(GetModuleHandleW(NULL));feedback[0]=0;owner=parent;target=p;pending=original=*p;wcsncpy(asset_directory,assets,32767);
-    paper=CreateSolidBrush(RGB(12,31,26));normal=CreateFontW(-18,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");heading=CreateFontW(-29,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");caption=CreateFontW(-16,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
-    WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=GetModuleHandleW(NULL);wc.lpszClassName=L"MonicaPreferences";wc.hbrBackground=paper;wc.hCursor=LoadCursor(NULL,IDC_ARROW);UnregisterClassW(wc.lpszClassName,wc.hInstance);RegisterClassW(&wc);
-    RECT r;GetClientRect(parent,&r);dialog=CreateWindowExW(WS_EX_CONTROLPARENT,L"MonicaPreferences",L"Configurações da aventura",WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,0,0,r.right,r.bottom,parent,NULL,wc.hInstance,NULL);
+    if(dialog){SetFocus(nav[current_tab]);return;}choice_register(GetModuleHandleW(NULL));feedback[0]=0;owner=parent;target=p;pending=original=*p;(void)assets;
+    paper=CreateSolidBrush(RGB(7,16,33));normal=CreateFontW(-18,0,0,0,FW_NORMAL,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");heading=CreateFontW(-29,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");caption=CreateFontW(-16,0,0,0,FW_SEMIBOLD,0,0,0,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
+    WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=GetModuleHandleW(NULL);wc.lpszClassName=L"CebolaPreferences";wc.hbrBackground=paper;wc.hCursor=LoadCursor(NULL,IDC_ARROW);UnregisterClassW(wc.lpszClassName,wc.hInstance);RegisterClassW(&wc);
+    RECT r;GetClientRect(parent,&r);dialog=CreateWindowExW(WS_EX_CONTROLPARENT,L"CebolaPreferences",L"Configurações da aventura",WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,0,0,r.right,r.bottom,parent,NULL,wc.hInstance,NULL);
     ui_scale=(double)r.right/1060;if((double)r.bottom/700<ui_scale)ui_scale=(double)r.bottom/700;ui_x=(r.right-(int)(1060*ui_scale))/2;ui_y=(r.bottom-(int)(700*ui_scale))/2;
     preferences_resize();closing=0;
-    wchar_t *names[]={L"Controles",L"Vídeo",L"Áudio",L"O jogo",L"Projeto",L"Créditos"};
+    wchar_t *names[]={L"Controles",L"Vídeo",L"Áudio",L"Guia",L"Projeto",L"Créditos"};
     for(int i=0;i<6;i++)nav[i]=child(L"BUTTON",names[i],WS_TABSTOP,32+i*166,22,156,40,600+i,0);
     child(L"BUTTON",L"Concluir",WS_TABSTOP,818,642,202,40,1,0);child(L"BUTTON",L"Descartar",WS_TABSTOP,650,642,154,40,2,0);
-    picture_load(&cover,L"period-box.png");picture_load(&advert,L"period-advert.png");picture_load(&forest,L"menu-forest.png");if(forest.pixels)for(size_t i=0;i<(size_t)forest.w*forest.h;i++){uint32_t c=forest.pixels[i];forest.pixels[i]=(((c>>16)&255)*18/100<<16)|(((c>>8)&255)*18/100<<8)|((c&255)*18/100);}screen_started=GetTickCount();build_page(tab);ShowWindow(dialog,SW_SHOW);SetFocus(nav[tab]);SetTimer(dialog,1,16,NULL);
+    screen_started=GetTickCount();build_page(tab);ShowWindow(dialog,SW_SHOW);SetFocus(nav[tab]);SetTimer(dialog,1,16,NULL);
 
 }
 int preferences_route(MSG *msg){

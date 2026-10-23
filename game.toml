@@ -1,7 +1,7 @@
 [game]
-output_prefix = "monica"
+output_prefix = "cebola"
 platform = "sms"
-rom = "monica.sms"
+rom = "cebola.sms"
 
 [mapper]
 kind = "sega"
